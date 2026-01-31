@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import {
   ArrowLeft,
   CheckCircle,
@@ -25,7 +26,16 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Shield
+  ChevronDown,
+  Shield,
+  Bot,
+  Keyboard,
+  MousePointer2,
+  Clipboard,
+  Clock,
+  Activity,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export default function ApplicationReviewPage() {
@@ -41,6 +51,11 @@ export default function ApplicationReviewPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [previewImage, setPreviewImage] = useState(null);
   const [showConfirm, setShowConfirm] = useState(null);
+  
+  // NEW: Behavioral Analysis States
+  const [behavioralAnalysis, setBehavioralAnalysis] = useState(null);
+  const [loadingBehavioral, setLoadingBehavioral] = useState(false);
+  const [showDetailedBehavioral, setShowDetailedBehavioral] = useState(false);
 
   useEffect(() => {
     if (applicationId) {
@@ -63,10 +78,35 @@ export default function ApplicationReviewPage() {
 
       const data = await res.json();
       setApplication(data);
+      
+      // Fetch detailed behavioral analysis if reference exists
+      if (data.behavioralAnalysisId) {
+        fetchBehavioralAnalysis(data.behavioralAnalysisId);
+      }
     } catch (err) {
       setError(err.message || 'Failed to load application');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // NEW: Fetch detailed behavioral analysis
+  const fetchBehavioralAnalysis = async (analysisId) => {
+    setLoadingBehavioral(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/behavioral-analysis/${analysisId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setBehavioralAnalysis(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch behavioral analysis:', err);
+    } finally {
+      setLoadingBehavioral(false);
     }
   };
 
@@ -108,6 +148,33 @@ export default function ApplicationReviewPage() {
     { id: 'up', label: 'Up', icon: ChevronUp }
   ];
 
+  // Helper functions for behavioral analysis display
+  const getRiskColor = (level) => {
+    switch (level) {
+      case 'low': return 'bg-green-500';
+      case 'medium': return 'bg-yellow-500';
+      case 'high': return 'bg-orange-500';
+      case 'critical': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getRiskBgColor = (level) => {
+    switch (level) {
+      case 'low': return 'bg-green-50 border-green-200';
+      case 'medium': return 'bg-yellow-50 border-yellow-200';
+      case 'high': return 'bg-orange-50 border-orange-200';
+      case 'critical': return 'bg-red-50 border-red-200';
+      default: return 'bg-gray-50 border-gray-200';
+    }
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 70) return 'text-green-600';
+    if (score >= 50) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -139,8 +206,20 @@ export default function ApplicationReviewPage() {
     );
   }
 
-  const riskScore = application?.behaviorAnalysis?.riskScore || 0;
-  const riskLevel = riskScore >= 70 ? 'high' : riskScore >= 40 ? 'medium' : 'low';
+  // Get risk data from NEW behaviorSummary or fall back to old behaviorAnalysis
+  const behaviorSummary = application?.behaviorSummary || {};
+  const legacyBehavior = application?.behaviorAnalysis || {};
+  
+  // Use new data if available, otherwise fall back to legacy
+  const botLikelihood = behaviorSummary.botLikelihood ?? legacyBehavior.riskScore ?? 0;
+  const overallTrustScore = behaviorSummary.overallTrustScore ?? (100 - botLikelihood);
+  const riskLevel = behaviorSummary.riskLevel || (botLikelihood >= 70 ? 'high' : botLikelihood >= 40 ? 'medium' : 'low');
+  const isHuman = behaviorSummary.isHuman ?? !legacyBehavior.suspiciousActivity ?? true;
+  const recommendation = behaviorSummary.recommendation || 'standard_flow';
+  
+  // Legacy risk score for backward compatibility
+  const riskScore = legacyBehavior.riskScore || botLikelihood;
+  
   const isAlreadyReviewed = ['approved', 'rejected'].includes(application?.status);
 
   return (
@@ -240,7 +319,7 @@ export default function ApplicationReviewPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge className={
             application?.status === 'approved' ? 'bg-green-100 text-green-700' :
             application?.status === 'rejected' ? 'bg-red-100 text-red-700' :
@@ -248,12 +327,16 @@ export default function ApplicationReviewPage() {
           }>
             {application?.status?.replace(/_/g, ' ').toUpperCase()}
           </Badge>
-          <Badge className={
-            riskLevel === 'high' ? 'bg-red-100 text-red-700' :
-            riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-            'bg-green-100 text-green-700'
-          }>
-            Risk: {riskScore}/100
+          {/* NEW: Bot/Human Badge */}
+          <Badge className={isHuman ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+            {isHuman ? (
+              <><User className="h-3 w-3 mr-1" /> Human</>
+            ) : (
+              <><Bot className="h-3 w-3 mr-1" /> Bot Suspected</>
+            )}
+          </Badge>
+          <Badge className={getRiskColor(riskLevel) + ' text-white'}>
+            {riskLevel.toUpperCase()} RISK
           </Badge>
         </div>
       </div>
@@ -452,26 +535,209 @@ export default function ApplicationReviewPage() {
 
         {/* Right Column - Risk Indicators & Actions */}
         <div className="space-y-6">
-          {/* Risk Assessment */}
+          
+          {/* ============ NEW: ENHANCED BEHAVIORAL ANALYSIS CARD ============ */}
+          <Card className={`border-2 shadow-sm ${getRiskBgColor(riskLevel)}`}>
+            <CardHeader className="py-4">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-base">
+                  <Activity className="h-5 w-5 text-primary" />
+                  Behavioral Analysis
+                </div>
+                <Badge className={getRiskColor(riskLevel) + ' text-white'}>
+                  {riskLevel.toUpperCase()}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                AI-powered bot detection and behavior verification
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Main Scores */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-white rounded-lg border">
+                  <div className="text-xs text-gray-500 uppercase">Trust Score</div>
+                  <div className={`text-2xl font-bold ${getScoreColor(overallTrustScore)}`}>
+                    {overallTrustScore}
+                  </div>
+                  <Progress value={overallTrustScore} className="h-1.5 mt-1" />
+                </div>
+                <div className="p-3 bg-white rounded-lg border">
+                  <div className="text-xs text-gray-500 uppercase">Bot Likelihood</div>
+                  <div className={`text-2xl font-bold ${
+                    botLikelihood < 30 ? 'text-green-600' : 
+                    botLikelihood < 60 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {botLikelihood}%
+                  </div>
+                  <Progress 
+                    value={botLikelihood} 
+                    className={`h-1.5 mt-1 ${botLikelihood > 50 ? '[&>div]:bg-red-500' : ''}`}
+                  />
+                </div>
+              </div>
+
+              {/* Human/Bot Assessment */}
+              <div className={`p-3 rounded-lg border ${isHuman ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                <div className="flex items-center gap-2">
+                  {isHuman ? (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <Bot className="h-5 w-5 text-red-600" />
+                  )}
+                  <span className={`font-medium ${isHuman ? 'text-green-700' : 'text-red-700'}`}>
+                    {isHuman ? 'Human Behavior Verified' : 'Bot-like Behavior Detected'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  Recommendation: <span className="font-medium">{recommendation.replace(/_/g, ' ')}</span>
+                </p>
+              </div>
+
+              {/* Detailed Analysis Toggle */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full"
+                onClick={() => setShowDetailedBehavioral(!showDetailedBehavioral)}
+                disabled={loadingBehavioral}
+              >
+                {loadingBehavioral ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading...</>
+                ) : showDetailedBehavioral ? (
+                  <><EyeOff className="h-4 w-4 mr-2" /> Hide Details</>
+                ) : (
+                  <><Eye className="h-4 w-4 mr-2" /> View Detailed Analysis</>
+                )}
+              </Button>
+
+              {/* Expanded Detailed Analysis */}
+              {showDetailedBehavioral && (
+                <div className="space-y-3 pt-3 border-t">
+                  {/* Component Scores */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Keystroke */}
+                    <div className="p-2 bg-white rounded border">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Keyboard className="h-3 w-3" /> Keystroke
+                      </div>
+                      <div className="font-bold">
+                        {behavioralAnalysis?.keystrokeAnalysis?.trustScore || 
+                         behavioralAnalysis?.componentScores?.typing || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {behavioralAnalysis?.keystrokeAnalysis?.avgIntervalMs 
+                          ? `${behavioralAnalysis.keystrokeAnalysis.avgIntervalMs}ms avg`
+                          : `${legacyBehavior.typingSpeed || 0} cpm`
+                        }
+                      </div>
+                    </div>
+
+                    {/* Mouse */}
+                    <div className="p-2 bg-white rounded border">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <MousePointer2 className="h-3 w-3" /> Mouse
+                      </div>
+                      <div className="font-bold">
+                        {behavioralAnalysis?.mouseAnalysis?.trustScore || 
+                         behavioralAnalysis?.componentScores?.mouse || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {behavioralAnalysis?.mouseAnalysis?.linearityRatio 
+                          ? `${Math.round(behavioralAnalysis.mouseAnalysis.linearityRatio * 100)}% linear`
+                          : `${legacyBehavior.mouseMovements || 0} moves`
+                        }
+                      </div>
+                    </div>
+
+                    {/* Paste */}
+                    <div className="p-2 bg-white rounded border">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Clipboard className="h-3 w-3" /> Paste
+                      </div>
+                      <div className="font-bold">
+                        {behavioralAnalysis?.pasteAnalysis?.trustScore || 
+                         behavioralAnalysis?.componentScores?.paste || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {behavioralAnalysis?.pasteAnalysis?.pastePercentage 
+                          ? `${behavioralAnalysis.pasteAnalysis.pastePercentage}% pasted`
+                          : 'No data'
+                        }
+                      </div>
+                    </div>
+
+                    {/* Speed */}
+                    <div className="p-2 bg-white rounded border">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Clock className="h-3 w-3" /> Speed
+                      </div>
+                      <div className="font-bold">
+                        {behavioralAnalysis?.speedAnalysis?.trustScore || 
+                         behavioralAnalysis?.componentScores?.speed || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {behavioralAnalysis?.speedAnalysis?.totalTimeSeconds 
+                          ? `${behavioralAnalysis.speedAnalysis.totalTimeSeconds}s total`
+                          : `${legacyBehavior.totalTimeSpent || 0}s`
+                        }
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Flags Detected */}
+                  {behavioralAnalysis?.flagsDetected?.length > 0 && (
+                    <div className="p-2 bg-red-50 rounded border border-red-200">
+                      <div className="flex items-center gap-1 text-xs text-red-700 font-medium mb-1">
+                        <AlertTriangle className="h-3 w-3" /> 
+                        Flags Detected ({behavioralAnalysis.flagsDetected.length})
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {behavioralAnalysis.flagsDetected.map((flag, idx) => (
+                          <Badge key={idx} variant="destructive" className="text-xs py-0">
+                            {flag.replace(/([A-Z])/g, ' $1').trim()}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Raw Metrics */}
+                  {behavioralAnalysis?.rawMetrics && (
+                    <div className="text-xs text-gray-500 pt-2 border-t">
+                      <div className="grid grid-cols-2 gap-1">
+                        <span>Keystrokes: {behavioralAnalysis.rawMetrics.totalKeystrokes || 0}</span>
+                        <span>Mouse: {behavioralAnalysis.rawMetrics.totalMouseMovements || 0}</span>
+                        <span>Fields: {behavioralAnalysis.rawMetrics.totalFields || 0}</span>
+                        <span>Session: {Math.round((behavioralAnalysis.rawMetrics.sessionDurationMs || 0) / 1000)}s</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ============ LEGACY: ORIGINAL RISK ASSESSMENT (kept for compatibility) ============ */}
           <Card className="border shadow-sm">
             <CardHeader className="bg-gray-50 border-b py-4">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Shield className="h-5 w-5 text-red-600" />
-                Risk Assessment
+                Legacy Risk Assessment
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
               {/* Risk Score */}
               <div className={`p-4 rounded-lg ${
-                riskLevel === 'high' ? 'bg-red-50' :
-                riskLevel === 'medium' ? 'bg-yellow-50' :
+                riskScore >= 70 ? 'bg-red-50' :
+                riskScore >= 40 ? 'bg-yellow-50' :
                 'bg-green-50'
               }`}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">Overall Risk Score</span>
+                  <span className="text-sm font-medium text-gray-700">Legacy Risk Score</span>
                   <span className={`text-2xl font-bold ${
-                    riskLevel === 'high' ? 'text-red-600' :
-                    riskLevel === 'medium' ? 'text-yellow-600' :
+                    riskScore >= 70 ? 'text-red-600' :
+                    riskScore >= 40 ? 'text-yellow-600' :
                     'text-green-600'
                   }`}>
                     {riskScore}/100
@@ -480,8 +746,8 @@ export default function ApplicationReviewPage() {
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
                     className={`h-2 rounded-full ${
-                      riskLevel === 'high' ? 'bg-red-500' :
-                      riskLevel === 'medium' ? 'bg-yellow-500' :
+                      riskScore >= 70 ? 'bg-red-500' :
+                      riskScore >= 40 ? 'bg-yellow-500' :
                       'bg-green-500'
                     }`}
                     style={{ width: `${riskScore}%` }}
@@ -510,20 +776,20 @@ export default function ApplicationReviewPage() {
                 </div>
 
                 <div className={`p-3 rounded-lg ${
-                  application?.behaviorAnalysis?.suspiciousActivity ? 'bg-red-50' : 'bg-green-50'
+                  legacyBehavior.suspiciousActivity ? 'bg-red-50' : 'bg-green-50'
                 }`}>
                   <div className="flex items-center gap-2">
                     <span className="text-lg">
-                      {application?.behaviorAnalysis?.suspiciousActivity ? '❗' : '✓'}
+                      {legacyBehavior.suspiciousActivity ? '❗' : '✓'}
                     </span>
                     <span className={`font-medium ${
-                      application?.behaviorAnalysis?.suspiciousActivity ? 'text-red-700' : 'text-green-700'
+                      legacyBehavior.suspiciousActivity ? 'text-red-700' : 'text-green-700'
                     }`}>
                       Suspicious Activity
                     </span>
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
-                    {application?.behaviorAnalysis?.suspiciousActivity 
+                    {legacyBehavior.suspiciousActivity 
                       ? 'Potential fraud indicators present' 
                       : 'No suspicious activity detected'
                     }
@@ -543,19 +809,19 @@ export default function ApplicationReviewPage() {
 
               {/* Behavior Details */}
               <div className="pt-4 border-t">
-                <p className="text-sm font-medium text-gray-700 mb-3">Behavior Metrics</p>
+                <p className="text-sm font-medium text-gray-700 mb-3">Legacy Behavior Metrics</p>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-500">Typing Speed</span>
-                    <span className="font-mono">{application?.behaviorAnalysis?.typingSpeed || 0} cpm</span>
+                    <span className="font-mono">{legacyBehavior.typingSpeed || 0} cpm</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Mouse Movements</span>
-                    <span className="font-mono">{application?.behaviorAnalysis?.mouseMovements || 0}</span>
+                    <span className="font-mono">{legacyBehavior.mouseMovements || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Time Spent</span>
-                    <span className="font-mono">{application?.behaviorAnalysis?.totalTimeSpent || 0}s</span>
+                    <span className="font-mono">{legacyBehavior.totalTimeSpent || 0}s</span>
                   </div>
                 </div>
               </div>
@@ -650,6 +916,14 @@ export default function ApplicationReviewPage() {
                 <span className="text-gray-500">Location</span>
                 <span>{application?.city}, {application?.state}</span>
               </div>
+              {application?.behavioralAnalysisId && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Behavioral ID</span>
+                  <span className="font-mono text-xs">
+                    {application.behavioralAnalysisId.toString().slice(-8)}
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
