@@ -23,7 +23,7 @@ function verifyToken(token) {
 export async function GET(request) {
   try {
     const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -39,7 +39,7 @@ export async function GET(request) {
       _id: new mongoose.Types.ObjectId(decoded.userId) 
     });
 
-    if (!user || user.role !== 'officer') {
+    if (!user || (user.role !== 'officer' && user.role !== 'admin')) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -52,7 +52,18 @@ export async function GET(request) {
     const query = {};
     
     if (status) {
-      query.status = { $in: status.split(',').map(s => s.trim()) };
+      query.status = status;
+    }
+    
+    // Filter by risk level using NEW behaviorSummary
+    if (riskFilter) {
+      if (riskFilter === 'high') {
+        query['behaviorSummary.riskLevel'] = { $in: ['high', 'critical'] };
+      } else if (riskFilter === 'suspicious') {
+        query['behaviorSummary.botLikelihood'] = { $gte: 50 };
+      } else {
+        query['behaviorSummary.riskLevel'] = riskFilter;
+      }
     }
 
     if (risk === 'high') {
@@ -74,6 +85,45 @@ export async function GET(request) {
       .skip((page - 1) * limit)
       .limit(limit)
       .toArray();
+
+    const total = await db.collection('verifications').countDocuments(query);
+
+    // Format response with NEW behavioral data
+    const formattedApplications = applications.map(app => ({
+      _id: app._id.toString(),
+      fullName: app.fullName,
+      gender: app.gender,
+      city: app.city,
+      state: app.state,
+      status: app.status,
+      submittedAt: app.submittedAt,
+      
+      // NEW: Behavioral Summary
+      behaviorSummary: app.behaviorSummary || {
+        overallTrustScore: 50,
+        botLikelihood: 50,
+        riskLevel: 'medium',
+        isHuman: true,
+        recommendation: 'standard_flow'
+      },
+      
+      // Reference to full analysis
+      behavioralAnalysisId: app.behavioralAnalysisId?.toString() || null,
+      
+      // AI verification summary
+      aiVerification: {
+        overallScore: app.aiVerificationResults?.overallScore || 0,
+        decision: app.aiVerificationResults?.aiDecision || 'PENDING',
+        faceVerified: app.aiVerificationResults?.faceVerification?.verified || false,
+        documentsVerified: app.aiVerificationResults?.manipulationDetection?.panCard?.verified || false
+      },
+      
+      // Legacy support (for old dashboard code)
+      behaviorAnalysis: {
+        riskScore: app.behaviorSummary?.botLikelihood || 0,
+        suspiciousActivity: (app.behaviorSummary?.botLikelihood || 0) > 50
+      }
+    }));
 
     return NextResponse.json({
       applications,

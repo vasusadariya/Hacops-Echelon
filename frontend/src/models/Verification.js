@@ -33,14 +33,6 @@ const documentImageSchema = {
   createdAt: { type: Date, default: Date.now }
 };
 
-// Behavior analysis schema
-const behaviorAnalysisSchema = {
-  typingSpeed: { type: Number, default: 0 },
-  mouseMovements: { type: Number, default: 0 },
-  totalTimeSpent: { type: Number, default: 0 },
-  suspiciousActivity: { type: Boolean, default: false },
-  riskScore: { type: Number, default: 0 }
-};
 
 // Status history schema
 const statusHistorySchema = {
@@ -149,7 +141,22 @@ const verificationSchema = new mongoose.Schema({
   },
 
   // Behavior Analysis Data
-  behaviorAnalysis: behaviorAnalysisSchema,
+  behavioralAnalysisId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BehavioralAnalysis'
+  },
+
+ behaviorSummary: {
+    overallTrustScore: { type: Number, default: 50 },
+    botLikelihood: { type: Number, default: 50 },
+    riskLevel: { 
+      type: String, 
+      enum: ['low', 'medium', 'high', 'critical'], 
+      default: 'medium' 
+    },
+    isHuman: { type: Boolean, default: true },
+    recommendation: { type: String, default: 'standard_flow' }
+  },
 
   // AI Model Verification Results
   aiVerificationResults: {

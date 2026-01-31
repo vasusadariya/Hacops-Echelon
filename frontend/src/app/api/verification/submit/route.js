@@ -192,6 +192,8 @@ export async function POST(request) {
       district,
       state,
       pincode,
+      
+      // Contact
       mobileNumber,
       aadhaarCardImage: aadhaarUpload,
       panCardImage: panUpload,
@@ -237,9 +239,12 @@ export async function POST(request) {
     // Trigger AI verification (async)
     triggerAIVerification(verificationId.toString());
 
+    console.log('✅ Behavioral analysis saved:', behavioralResult.analysisId.toString());
+    console.log('📊 Behavior Summary:', behavioralResult.summary);
+
+    // ============ RETURN SUCCESS ============
     return NextResponse.json({
       success: true,
-      message: 'Verification submitted successfully',
       verificationId: verificationId.toString(),
       status: 'submitted'
     });

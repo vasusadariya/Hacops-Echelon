@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import {
   ArrowLeft, CheckCircle, XCircle, AlertTriangle, User, FileText,
   MapPin, Phone, Loader2, Shield, Clock, Image
@@ -133,6 +134,33 @@ export default function ReviewApplicationPage() {
       setActionLoading(false);
       setShowRejectModal(false);
     }
+  };
+
+  // Helper functions for behavioral analysis display
+  const getRiskColor = (level) => {
+    switch (level) {
+      case 'low': return 'bg-green-500';
+      case 'medium': return 'bg-yellow-500';
+      case 'high': return 'bg-orange-500';
+      case 'critical': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getRiskBgColor = (level) => {
+    switch (level) {
+      case 'low': return 'bg-green-50 border-green-200';
+      case 'medium': return 'bg-yellow-50 border-yellow-200';
+      case 'high': return 'bg-orange-50 border-orange-200';
+      case 'critical': return 'bg-red-50 border-red-200';
+      default: return 'bg-gray-50 border-gray-200';
+    }
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 70) return 'text-green-600';
+    if (score >= 50) return 'text-yellow-600';
+    return 'text-red-600';
   };
 
   if (loading) {
