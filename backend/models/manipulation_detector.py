@@ -19,9 +19,11 @@ router = APIRouter(
 # ------------------------
 # Configuration
 # ------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "trained_model.h5")
+
 IMAGE_SIZE = (128, 128)
 ELA_QUALITY = 90
-MODEL_PATH = r"F:\HackOps-Ecleon\HackOps-echelon\backend\models\trained_model.h5"
 
 # ------------------------
 # Load model ONCE
