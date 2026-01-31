@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { useTranslations } from 'next-intl';
+
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LanguageSwitcher } from "@/components/language-switcher";
 
 import { Search, Menu, X, LogOut, User, Settings } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export default function Navbar() {
   const t = useTranslations();
