@@ -11,34 +11,30 @@ async function connectToDatabase() {
   return mongoose.connection.db;
 }
 
-function verifyTokenSimple(token) {
+function verifyToken(token) {
   try {
     const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    return decoded;
-  } catch (error) {
+    return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+  } catch {
     return null;
   }
 }
 
 export async function GET(request) {
   try {
-    // Auth
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = verifyTokenSimple(token);
+    const decoded = verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Connect to DB
     const db = await connectToDatabase();
     
-    // Check officer
     const user = await db.collection('users').findOne({ 
       _id: new mongoose.Types.ObjectId(decoded.userId) 
     });
@@ -47,22 +43,34 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Parse params
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
+    const risk = searchParams.get('risk');
 
-    // Query
     const query = {};
+    
     if (status) {
       query.status = { $in: status.split(',').map(s => s.trim()) };
     }
 
-    const total = await db.collection('verifications').countDocuments(query);
-    const applications = await db.collection('verifications')
+    if (risk === 'high') {
+      query['behaviorAnalysis.riskScore'] = { $gte: 70 };
+    } else if (risk === 'medium') {
+      query['behaviorAnalysis.riskScore'] = { $gte: 40, $lt: 70 };
+    } else if (risk === 'low') {
+      query['behaviorAnalysis.riskScore'] = { $lt: 40 };
+    }
+
+    const verificationsCollection = db.collection('verifications');
+    
+    const total = await verificationsCollection.countDocuments(query);
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    const applications = await verificationsCollection
       .find(query)
-      .sort({ updatedAt: -1, createdAt: -1 })
+      .sort({ 'behaviorAnalysis.riskScore': -1, updatedAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .toArray();
@@ -70,13 +78,13 @@ export async function GET(request) {
     return NextResponse.json({
       applications,
       total,
-      totalPages: Math.ceil(total / limit) || 1,
+      totalPages,
       page,
       limit
     });
 
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('Applications API error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

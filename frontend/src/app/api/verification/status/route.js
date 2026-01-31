@@ -1,7 +1,24 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import connectDB from '@/lib/mongodb';
-import { verifyToken } from '@/lib/jwt';
+
+const MONGODB_URI = process.env.MONGODB_URI;
+
+async function connectToDatabase() {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection.db;
+  }
+  await mongoose.connect(MONGODB_URI);
+  return mongoose.connection.db;
+}
+
+function verifyToken(token) {
+  try {
+    const jwt = require('jsonwebtoken');
+    return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request) {
   try {
@@ -16,11 +33,9 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    await connectDB();
-    const db = mongoose.connection.db;
-    const verificationsCollection = db.collection('verifications');
+    const db = await connectToDatabase();
 
-    const verification = await verificationsCollection.findOne(
+    const verification = await db.collection('verifications').findOne(
       { userId: new mongoose.Types.ObjectId(decoded.userId) },
       { sort: { createdAt: -1 } }
     );
@@ -29,69 +44,63 @@ export async function GET(request) {
       return NextResponse.json({
         hasVerification: false,
         status: 'not_started',
-        message: 'No verification application found. Please start your verification.'
+        statusInfo: {
+          title: 'Not Started',
+          message: 'You have not started the verification process yet.',
+          color: 'gray',
+          step: 0
+        }
       });
     }
 
-    // Status messages
-    const statusMessages = {
+    // Status information with step numbers for progress display
+    const statusConfig = {
       draft: {
         title: 'Draft',
         message: 'Your application is saved as draft. Please complete and submit.',
         color: 'gray',
-        icon: 'edit'
+        step: 1
       },
       submitted: {
         title: 'Submitted',
-        message: 'Your application has been submitted and is in queue for processing.',
+        message: 'Your application has been submitted successfully. It will be processed by our AI system shortly.',
         color: 'blue',
-        icon: 'clock'
+        step: 2
       },
       under_automated_verification: {
-        title: 'AI Verification in Progress',
-        message: 'Your application is being verified by our automated systems. This usually takes a few minutes.',
+        title: 'AI Verification In Progress',
+        message: 'Your application is being analyzed by our automated verification system. This usually takes 1-2 minutes.',
         color: 'purple',
-        icon: 'cpu'
+        step: 3
       },
       under_officer_review: {
         title: 'Under Officer Review',
-        message: 'Your application has passed automated checks and is being reviewed by a verification officer.',
+        message: 'AI verification is complete. A verification officer will review your application shortly.',
         color: 'orange',
-        icon: 'user-check'
+        step: 4
       },
       approved: {
         title: 'Approved',
-        message: 'Congratulations! Your identity has been verified successfully.',
+        message: 'Congratulations! Your identity has been verified successfully. You now have full access to all services.',
         color: 'green',
-        icon: 'check-circle'
+        step: 5
       },
       rejected: {
         title: 'Rejected',
-        message: 'Your application was not approved. Please review the reason below and resubmit if eligible.',
+        message: verification.rejectionReason 
+          ? `Your application was rejected. Reason: ${verification.rejectionReason}`
+          : 'Your application was rejected. Please contact support for more information.',
         color: 'red',
-        icon: 'x-circle'
+        step: 5
       }
     };
 
-    const statusInfo = statusMessages[verification.status] || {
+    const statusInfo = statusConfig[verification.status] || {
       title: verification.status,
-      message: 'Status unknown',
+      message: 'Status information unavailable',
       color: 'gray',
-      icon: 'help'
+      step: 0
     };
-
-    // Get selfie URLs
-    let selfieUrls = null;
-    if (verification.biometricSelfies) {
-      selfieUrls = {
-        front: verification.biometricSelfies.front?.secureUrl,
-        left: verification.biometricSelfies.left?.secureUrl,
-        right: verification.biometricSelfies.right?.secureUrl,
-        up: verification.biometricSelfies.up?.secureUrl
-      };
-    } else if (verification.biometricSelfie?.secureUrl) {
-      selfieUrls = { front: verification.biometricSelfie.secureUrl };
-    }
 
     return NextResponse.json({
       hasVerification: true,
@@ -111,14 +120,19 @@ export async function GET(request) {
       
       // Review info
       rejectionReason: verification.rejectionReason,
+      reviewedByName: verification.reviewedByName,
+      
+      // AI Analysis summary (if available)
+      aiAnalysis: verification.aiAnalysis ? {
+        riskScore: verification.aiAnalysis.overallRiskScore,
+        recommendation: verification.aiAnalysis.recommendation,
+        issuesCount: verification.aiAnalysis.allIssues?.length || 0
+      } : null,
       
       // Status history
       statusHistory: verification.statusHistory || [],
       
-      // Selfies
-      selfieUrls,
-      
-      // Flags for UI
+      // Flags
       isVerified: verification.status === 'approved',
       isPending: ['submitted', 'under_automated_verification', 'under_officer_review'].includes(verification.status),
       isRejected: verification.status === 'rejected',
@@ -127,6 +141,6 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Status error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

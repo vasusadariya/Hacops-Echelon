@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Clock, RefreshCw, Eye, CheckCircle, XCircle, AlertTriangle,
-  User, FileText, MapPin, Phone, Loader2, ChevronDown, ChevronUp, Shield
+  FileText, MapPin, Phone, Loader2, ChevronDown, ChevronUp, Shield
 } from 'lucide-react';
 
 export default function PendingApplicationsPage() {
@@ -44,10 +44,17 @@ export default function PendingApplicationsPage() {
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`API Error: ${res.status} - ${text.substring(0, 100)}`);
+        throw new Error(`API Error: ${res.status}`);
       }
 
       const data = await res.json();
+      console.log('Fetched applications:', data.applications?.length);
+      
+      // Log each application ID for debugging
+      data.applications?.forEach(app => {
+        console.log('App ID:', app._id, 'Name:', app.fullName);
+      });
+      
       setApplications(data.applications || []);
 
     } catch (err) {
@@ -58,7 +65,15 @@ export default function PendingApplicationsPage() {
     }
   };
 
-  const handleApprove = async (appId) => {
+  const getFullId = (app) => {
+    // Return the full MongoDB _id as string
+    return typeof app._id === 'object' ? app._id.toString() : app._id;
+  };
+
+  const handleApprove = async (app) => {
+    const appId = getFullId(app);
+    console.log('Approving application:', appId);
+    
     setActionLoading(appId);
     setError('');
     
@@ -73,28 +88,34 @@ export default function PendingApplicationsPage() {
         body: JSON.stringify({ action: 'approve', remarks: '' })
       });
 
+      const data = await res.json();
+      console.log('Approve response:', data);
+      
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || 'Failed to approve');
       }
 
       setSuccess('Application approved successfully!');
-      setApplications(prev => prev.filter(app => app._id !== appId));
+      setApplications(prev => prev.filter(a => getFullId(a) !== appId));
       setTimeout(() => setSuccess(''), 3000);
 
     } catch (err) {
+      console.error('Approve error:', err);
       setError(err.message);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleReject = async (appId) => {
+  const handleReject = async (app) => {
+    const appId = getFullId(app);
+    
     if (!rejectionReason.trim()) {
       setError('Please provide a rejection reason');
       return;
     }
 
+    console.log('Rejecting application:', appId);
     setActionLoading(appId);
     setError('');
     
@@ -109,18 +130,21 @@ export default function PendingApplicationsPage() {
         body: JSON.stringify({ action: 'reject', remarks: rejectionReason })
       });
 
+      const data = await res.json();
+      console.log('Reject response:', data);
+      
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || 'Failed to reject');
       }
 
       setSuccess('Application rejected successfully!');
-      setApplications(prev => prev.filter(app => app._id !== appId));
+      setApplications(prev => prev.filter(a => getFullId(a) !== appId));
       setShowRejectModal(null);
       setRejectionReason('');
       setTimeout(() => setSuccess(''), 3000);
 
     } catch (err) {
+      console.error('Reject error:', err);
       setError(err.message);
     } finally {
       setActionLoading(null);
@@ -129,19 +153,33 @@ export default function PendingApplicationsPage() {
 
   const getRiskBadge = (score) => {
     const s = score || 0;
-    if (s >= 70) return <Badge className="bg-red-500 text-white">High Risk ({s})</Badge>;
+    if (s >= 70) return <Badge className="bg-red-500 text-white">High ({s})</Badge>;
     if (s >= 40) return <Badge className="bg-yellow-500 text-white">Medium ({s})</Badge>;
     return <Badge className="bg-green-500 text-white">Low ({s})</Badge>;
   };
 
   const getAIFlags = (app) => {
     const flags = [];
-    if (app.aiAnalysis?.documentAnomaly) flags.push({ icon: '📄', text: 'Document Anomaly' });
-    if (app.aiAnalysis?.faceMismatch) flags.push({ icon: '👤', text: 'Face Mismatch' });
-    if (app.aiAnalysis?.faceReuse) flags.push({ icon: '🚨', text: 'Face Reuse' });
-    if (app.behaviorAnalysis?.suspiciousActivity) flags.push({ icon: '⚠️', text: 'Suspicious Activity' });
+    const ai = app.aiAnalysis || {};
+    
+    if (ai.documentAnalysis?.anomalyDetected) {
+      flags.push({ icon: '📄', text: 'Document Issue', desc: ai.documentAnalysis.issues?.join(', ') });
+    }
+    if (ai.faceAnalysis?.mismatch) {
+      flags.push({ icon: '👤', text: 'Face Mismatch', desc: 'Face may not match documents' });
+    }
+    if (ai.faceAnalysis?.reuse) {
+      flags.push({ icon: '🚨', text: 'Face Reuse', desc: 'Face used in another application' });
+    }
+    if (ai.behaviorAnalysis?.suspicious) {
+      flags.push({ icon: '⚠️', text: 'Suspicious Behavior', desc: ai.behaviorAnalysis.issues?.join(', ') });
+    }
+    
     return flags;
   };
+
+  // Find the app for reject modal
+  const rejectApp = showRejectModal ? applications.find(a => getFullId(a) === showRejectModal) : null;
 
   return (
     <div className="space-y-6">
@@ -175,7 +213,7 @@ export default function PendingApplicationsPage() {
       )}
 
       {/* Reject Modal */}
-      {showRejectModal && (
+      {showRejectModal && rejectApp && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <Card className="max-w-md w-full">
             <CardHeader className="bg-red-50 border-b">
@@ -184,6 +222,9 @@ export default function PendingApplicationsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
+              <p className="text-sm text-gray-600">
+                Rejecting application for: <strong>{rejectApp.fullName}</strong>
+              </p>
               <Textarea
                 placeholder="Rejection reason (required)..."
                 value={rejectionReason}
@@ -191,10 +232,14 @@ export default function PendingApplicationsPage() {
                 rows={4}
               />
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => { setShowRejectModal(null); setRejectionReason(''); }}>
+                <Button variant="outline" onClick={() => { setShowRejectModal(null); setRejectionReason(''); setError(''); }}>
                   Cancel
                 </Button>
-                <Button variant="destructive" onClick={() => handleReject(showRejectModal)} disabled={!rejectionReason.trim() || actionLoading}>
+                <Button 
+                  variant="destructive" 
+                  onClick={() => handleReject(rejectApp)} 
+                  disabled={!rejectionReason.trim() || actionLoading}
+                >
                   {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reject'}
                 </Button>
               </div>
@@ -226,12 +271,14 @@ export default function PendingApplicationsPage() {
 
       {/* Applications */}
       {!loading && applications.map((app) => {
-        const riskScore = app.behaviorAnalysis?.riskScore || 0;
+        const appId = getFullId(app);
+        const riskScore = app.behaviorAnalysis?.riskScore || app.aiAnalysis?.overallRiskScore || 0;
         const flags = getAIFlags(app);
-        const isExpanded = expandedApp === app._id;
+        const isExpanded = expandedApp === appId;
+        const isLoading = actionLoading === appId;
 
         return (
-          <Card key={app._id} className="border shadow-sm">
+          <Card key={appId} className="border shadow-sm">
             <CardContent className="p-4">
               {/* Header Row */}
               <div className="flex flex-col lg:flex-row lg:items-center gap-4">
@@ -242,7 +289,9 @@ export default function PendingApplicationsPage() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-bold text-lg">{app.fullName}</h3>
-                      <code className="text-xs bg-gray-100 px-2 py-0.5 rounded">#{app._id?.slice(-6).toUpperCase()}</code>
+                      <code className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                        #{appId.slice(-6).toUpperCase()}
+                      </code>
                       {getRiskBadge(riskScore)}
                     </div>
                     <div className="text-sm text-gray-500 flex flex-wrap gap-3 mt-1">
@@ -254,17 +303,29 @@ export default function PendingApplicationsPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2">
-                  <Button className="bg-green-600 hover:bg-green-700" onClick={() => handleApprove(app._id)} disabled={actionLoading === app._id}>
-                    {actionLoading === app._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4 mr-1" /> Approve</>}
+                <div className="flex gap-2 flex-wrap">
+                  <Button 
+                    className="bg-green-600 hover:bg-green-700" 
+                    onClick={() => handleApprove(app)} 
+                    disabled={isLoading}
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4 mr-1" /> Approve</>}
                   </Button>
-                  <Button variant="destructive" onClick={() => setShowRejectModal(app._id)} disabled={actionLoading === app._id}>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => setShowRejectModal(appId)} 
+                    disabled={isLoading}
+                  >
                     <XCircle className="h-4 w-4 mr-1" /> Reject
                   </Button>
-                  <Button variant="outline" size="icon" onClick={() => setExpandedApp(isExpanded ? null : app._id)}>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => setExpandedApp(isExpanded ? null : appId)}
+                  >
                     {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
-                  <Link href={`/officer/review/${app._id}`}>
+                  <Link href={`/officer/review/${appId}`}>
                     <Button variant="outline"><Eye className="h-4 w-4 mr-1" /> View</Button>
                   </Link>
                 </div>
@@ -272,19 +333,18 @@ export default function PendingApplicationsPage() {
 
               {/* AI Flags */}
               <div className="mt-4 pt-4 border-t">
-                <p className="text-sm font-semibold mb-2 flex items-center gap-1">
-                  <Shield className="h-4 w-4" /> AI Analysis:
-                </p>
+                <p className="text-sm font-semibold mb-2"><Shield className="h-4 w-4 inline mr-1" /> AI Analysis:</p>
                 {flags.length === 0 ? (
                   <div className="bg-green-50 text-green-700 p-2 rounded flex items-center gap-2">
                     <CheckCircle className="h-5 w-5" /> No issues detected
                   </div>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="space-y-2">
                     {flags.map((f, i) => (
-                      <span key={i} className="bg-orange-100 text-orange-800 px-3 py-1 rounded text-sm">
-                        {f.icon} {f.text}
-                      </span>
+                      <div key={i} className="bg-orange-50 text-orange-800 px-3 py-2 rounded border border-orange-200">
+                        <span className="font-medium">{f.icon} {f.text}</span>
+                        {f.desc && <p className="text-sm text-orange-600 mt-1">{f.desc}</p>}
+                      </div>
                     ))}
                   </div>
                 )}
@@ -300,6 +360,7 @@ export default function PendingApplicationsPage() {
                       <p><strong>Gender:</strong> {app.gender}</p>
                       <p><strong>Document ID:</strong> {app.documentIdNumber}</p>
                       <p><strong>Mobile:</strong> +91 {app.mobileNumber}</p>
+                      <p><strong>Full ID:</strong> <code className="text-xs">{appId}</code></p>
                     </div>
                     <div>
                       <h4 className="font-semibold mb-2">Address</h4>
@@ -309,11 +370,10 @@ export default function PendingApplicationsPage() {
                       <p>{app.state} - {app.pincode}</p>
                     </div>
                     <div>
-                      <h4 className="font-semibold mb-2">Behavior Metrics</h4>
+                      <h4 className="font-semibold mb-2">Verification Info</h4>
+                      <p><strong>Status:</strong> {app.status}</p>
                       <p><strong>Risk Score:</strong> {riskScore}/100</p>
-                      <p><strong>Typing Speed:</strong> {app.behaviorAnalysis?.typingSpeed || 0} cpm</p>
-                      <p><strong>Mouse Moves:</strong> {app.behaviorAnalysis?.mouseMovements || 0}</p>
-                      <p><strong>Time Spent:</strong> {app.behaviorAnalysis?.totalTimeSpent || 0}s</p>
+                      <p><strong>Submitted:</strong> {app.submittedAt ? new Date(app.submittedAt).toLocaleString() : 'N/A'}</p>
                     </div>
                   </div>
                 </div>

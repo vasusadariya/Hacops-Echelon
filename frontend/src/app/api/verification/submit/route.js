@@ -1,110 +1,79 @@
 import { NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 import mongoose from 'mongoose';
-import connectDB from '@/lib/mongodb';
-import { verifyToken } from '@/lib/jwt';
-import { uploadSelfieBase64, uploadDocument, deleteFromCloudinary } from '@/lib/cloudinary';
-import Result from '@/models/result';
+import { v2 as cloudinary } from 'cloudinary';
 
-// ============ HELPER FUNCTIONS ============
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-// Verify reCAPTCHA token
-async function verifyRecaptcha(token) {
-  if (!token) {
-    console.warn('No reCAPTCHA token provided');
-    return true; // Skip in development
+const MONGODB_URI = process.env.MONGODB_URI;
+
+async function connectToDatabase() {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection.db;
   }
-  
-  const secretKey = process.env.RECAPTCHA_SECRET_KEY;
-  if (!secretKey) {
-    console.warn('No RECAPTCHA_SECRET_KEY configured');
-    return true; // Skip if not configured
-  }
+  await mongoose.connect(MONGODB_URI);
+  return mongoose.connection.db;
+}
 
+function verifyToken(token) {
   try {
-    const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `secret=${secretKey}&response=${token}`
+    const jwt = require('jsonwebtoken');
+    return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+  } catch {
+    return null;
+  }
+}
+
+// Upload file to Cloudinary
+async function uploadToCloudinary(file, folder) {
+  try {
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const base64 = buffer.toString('base64');
+    const dataURI = `data:${file.type};base64,${base64}`;
+    
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder: folder,
+      resource_type: 'auto',
     });
-    const data = await response.json();
-    return data.success;
-  } catch (error) {
-    console.error('reCAPTCHA error:', error);
-    return false;
-  }
-}
-
-// Analyze behavior data for bot detection
-function analyzeBehavior(data) {
-  if (!data) {
+    
     return {
-      typingSpeed: 0,
-      mouseMovements: 0,
-      totalTimeSpent: 0,
-      suspiciousActivity: false,
-      riskScore: 0
+      publicId: result.public_id,
+      secureUrl: result.secure_url,
     };
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    throw new Error(`Failed to upload to Cloudinary: ${error.message}`);
   }
-
-  let riskScore = 0;
-  if (data.typingSpeed > 600) riskScore += 30;
-  if (data.mouseMovements < 10) riskScore += 25;
-  if (data.totalTimeSpent < 30) riskScore += 35;
-
-  return {
-    typingSpeed: data.typingSpeed || 0,
-    mouseMovements: data.mouseMovements || 0,
-    totalTimeSpent: data.totalTimeSpent || 0,
-    suspiciousActivity: riskScore > 50,
-    riskScore: Math.min(riskScore, 100)
-  };
 }
 
-// Convert file to buffer
-async function fileToBuffer(file) {
-  const bytes = await file.arrayBuffer();
-  return Buffer.from(bytes);
+// Upload base64 image to Cloudinary
+async function uploadBase64ToCloudinary(base64Data, folder) {
+  try {
+    const result = await cloudinary.uploader.upload(base64Data, {
+      folder: folder,
+      resource_type: 'auto',
+    });
+    
+    return {
+      publicId: result.public_id,
+      secureUrl: result.secure_url,
+    };
+  } catch (error) {
+    console.error('Cloudinary base64 upload error:', error);
+    throw new Error(`Failed to upload to Cloudinary: ${error.message}`);
+  }
 }
-
-// Process Cloudinary upload result for documents
-function processDocumentUpload(result, filename) {
-  return {
-    publicId: result.public_id,
-    secureUrl: result.secure_url,
-    url: result.url,
-    format: result.format,
-    width: result.width,
-    height: result.height,
-    bytes: result.bytes,
-    originalFilename: filename || 'document',
-    createdAt: new Date()
-  };
-}
-
-// Process Cloudinary upload result for face images
-function processFaceUpload(result) {
-  return {
-    publicId: result.public_id,
-    secureUrl: result.secure_url,
-    url: result.url,
-    format: result.format,
-    width: result.width,
-    height: result.height,
-    bytes: result.bytes,
-    capturedAt: new Date()
-  };
-}
-
-// ============ MAIN HANDLER ============
 
 export async function POST(request) {
-  const uploadedFiles = []; // Track uploaded files for cleanup on error
-
+  console.log('=== Verification Submit API Called ===');
+  
   try {
-    console.log('=== Verification Submit Started ===');
-
-    // ============ AUTHENTICATION ============
+    // Auth check
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -113,304 +82,109 @@ export async function POST(request) {
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded) {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const userId = decoded.userId;
-    console.log('User ID:', userId);
+    const db = await connectToDatabase();
+    const userId = new mongoose.Types.ObjectId(decoded.userId);
 
-    // ============ DATABASE CONNECTION ============
-    await connectDB();
-    console.log('MongoDB connected');
-
-    // ============ PARSE FORM DATA ============
+    // Parse form data
     const formData = await request.formData();
-    console.log('Form data received');
-
-    // ============ RECAPTCHA VERIFICATION ============
-    const recaptchaToken = formData.get('recaptchaToken');
-    if (!(await verifyRecaptcha(recaptchaToken))) {
-      return NextResponse.json({ error: 'reCAPTCHA verification failed' }, { status: 400 });
-    }
-    console.log('reCAPTCHA verified');
-
-    // ============ EXTRACT FORM FIELDS ============
-    const fullName = formData.get('fullName')?.trim() || '';
-    const gender = formData.get('gender') || '';
-    const addressLine1 = formData.get('addressLine1') || '';
+    
+    // Extract fields
+    const fullName = formData.get('fullName');
+    const gender = formData.get('gender');
+    const addressLine1 = formData.get('addressLine1');
     const addressLine2 = formData.get('addressLine2') || '';
-    const city = formData.get('city') || '';
-    const taluka = formData.get('taluka') || '';
-    const district = formData.get('district') || '';
-    const state = formData.get('state') || '';
-    const pincode = formData.get('pincode') || '';
-    const mobileNumber = formData.get('mobileNumber') || '';
+    const city = formData.get('city');
+    const taluka = formData.get('taluka');
+    const district = formData.get('district');
+    const state = formData.get('state');
+    const pincode = formData.get('pincode');
+    const mobileNumber = formData.get('mobileNumber');
+    
+    // Extract files
+    const aadhaarCard = formData.get('aadhaarCard');
+    const panCard = formData.get('panCard');
+    
+    // Extract face captures (base64 JSON)
+    const faceCapturesStr = formData.get('faceCaptures');
+    let faceCaptures = null;
+    try {
+      faceCaptures = JSON.parse(faceCapturesStr);
+    } catch (e) {
+      console.log('Failed to parse face captures');
+    }
 
-    // Get document files
-    const aadhaarFile = formData.get('aadhaarCard');
-    const panFile = formData.get('panCard');
-
-    // Parse behavior data
+    // Extract behavior data
+    const behaviorDataStr = formData.get('behaviorData');
     let behaviorData = {};
     try {
-      behaviorData = JSON.parse(formData.get('behaviorData') || '{}');
-    } catch {}
-    const behaviorAnalysis = analyzeBehavior(behaviorData);
-
-    // Parse AI verification results
-    let aiVerificationResults = {};
-    const aiResultsJson = formData.get('aiVerificationResults');
-    if (aiResultsJson) {
-      try {
-        aiVerificationResults = JSON.parse(aiResultsJson);
-        console.log('AI Verification Results received:', {
-          faceVerification: !!aiVerificationResults.faceVerification,
-          panCardOCR: !!aiVerificationResults.panCardOCR,
-          manipulationDetection: !!aiVerificationResults.manipulationDetection
-        });
-      } catch (e) {
-        console.warn('Failed to parse AI verification results:', e);
-      }
+      behaviorData = JSON.parse(behaviorDataStr);
+    } catch (e) {
+      console.log('No behavior data');
     }
 
-    // ============ PARSE FACE CAPTURES (4 ANGLES) ============
-    let faceCaptures = {};
-    
-    // Try to get from JSON first
-    const faceCapturesJson = formData.get('faceCaptures');
-    if (faceCapturesJson) {
-      try {
-        faceCaptures = JSON.parse(faceCapturesJson);
-      } catch {
-        console.warn('Failed to parse faceCaptures JSON');
-      }
-    }
-    
-    // Fallback to individual fields
-    if (!faceCaptures.front) {
-      faceCaptures = {
-        front: formData.get('selfieFront') || '',
-        left: formData.get('selfieLeft') || '',
-        right: formData.get('selfieRight') || '',
-        up: formData.get('selfieUp') || ''
-      };
-    }
+    console.log('Form data received:', { fullName, gender, city, state });
 
-    console.log('Form fields extracted');
-    console.log('Face captures present:', {
-      front: !!faceCaptures.front,
-      left: !!faceCaptures.left,
-      right: !!faceCaptures.right,
-      up: !!faceCaptures.up
-    });
-
-    // ============ VALIDATION ============
+    // Validate required fields
     const errors = [];
-
-    // Personal info validation
-    if (!fullName || fullName.length < 3) {
-      errors.push('Full name must be at least 3 characters');
-    }
-    if (!['male', 'female', 'other'].includes(gender)) {
-      errors.push('Please select a valid gender');
-    }
-
-    // Address validation
-    if (!addressLine1 || addressLine1.length < 10) {
-      errors.push('Address Line 1 must be at least 10 characters');
-    }
+    if (!fullName || fullName.length < 3) errors.push('Full name is required');
+    if (!gender) errors.push('Gender is required');
+    if (!addressLine1 || addressLine1.length < 10) errors.push('Address is required');
     if (!city) errors.push('City is required');
     if (!taluka) errors.push('Taluka is required');
     if (!district) errors.push('District is required');
     if (!state) errors.push('State is required');
-    if (!/^\d{6}$/.test(pincode)) {
-      errors.push('Pincode must be exactly 6 digits');
-    }
-    if (!/^\d{10}$/.test(mobileNumber)) {
-      errors.push('Mobile number must be exactly 10 digits');
-    }
-
-    // Document file validation
-    if (!aadhaarFile || aadhaarFile.size === 0) {
-      errors.push('Aadhaar card image is required');
-    } else if (aadhaarFile.size > 2 * 1024 * 1024) {
-      errors.push('Aadhaar card image must be less than 2MB');
-    }
-
-    if (!panFile || panFile.size === 0) {
-      errors.push('PAN card image is required');
-    } else if (panFile.size > 2 * 1024 * 1024) {
-      errors.push('PAN card image must be less than 2MB');
-    }
-
-    // Face captures validation
-    if (!faceCaptures.front || faceCaptures.front.length < 100) {
-      errors.push('Front face photo is required');
-    }
-    if (!faceCaptures.left || faceCaptures.left.length < 100) {
-      errors.push('Left face photo is required');
-    }
-    if (!faceCaptures.right || faceCaptures.right.length < 100) {
-      errors.push('Right face photo is required');
-    }
-    if (!faceCaptures.up || faceCaptures.up.length < 100) {
-      errors.push('Up face photo is required');
-    }
+    if (!pincode || pincode.length !== 6) errors.push('Valid pincode is required');
+    if (!mobileNumber || mobileNumber.length !== 10) errors.push('Valid mobile number is required');
+    if (!aadhaarCard) errors.push('Aadhaar card is required');
+    if (!panCard) errors.push('PAN card is required');
 
     if (errors.length > 0) {
-      console.log('Validation errors:', errors);
-      return NextResponse.json({ errors }, { status: 400 });
+      return NextResponse.json({ error: errors.join(', '), errors }, { status: 400 });
     }
 
-    console.log('Validation passed');
+    console.log('Uploading documents to Cloudinary...');
 
-    // ============ UPLOAD FILES TO CLOUDINARY ============
-    const uniqueId = uuidv4();
+    // Upload documents to Cloudinary
+    let aadhaarUpload, panUpload;
+    try {
+      [aadhaarUpload, panUpload] = await Promise.all([
+        uploadToCloudinary(aadhaarCard, 'verifications/aadhaar'),
+        uploadToCloudinary(panCard, 'verifications/pan'),
+      ]);
+      console.log('Documents uploaded successfully');
+    } catch (uploadError) {
+      console.error('Document upload failed:', uploadError);
+      return NextResponse.json({ error: 'Failed to upload documents: ' + uploadError.message }, { status: 500 });
+    }
 
-    // Upload Aadhaar
-    console.log('Uploading Aadhaar card...');
-    const aadhaarBuffer = await fileToBuffer(aadhaarFile);
-    const aadhaarResult = await uploadDocument(aadhaarBuffer, 'aadhaar', uniqueId);
-    uploadedFiles.push(aadhaarResult.public_id);
-    const aadhaarImage = processDocumentUpload(aadhaarResult, aadhaarFile.name);
-    console.log('Aadhaar uploaded:', aadhaarResult.public_id);
-
-    // Upload PAN
-    console.log('Uploading PAN card...');
-    const panBuffer = await fileToBuffer(panFile);
-    const panResult = await uploadDocument(panBuffer, 'pan', uniqueId);
-    uploadedFiles.push(panResult.public_id);
-    const panImage = processDocumentUpload(panResult, panFile.name);
-    console.log('PAN uploaded:', panResult.public_id);
-
-    // Upload all 4 face images
-    console.log('Uploading face captures...');
-    const faceImages = {};
-    const faceTypes = ['front', 'left', 'right', 'up'];
-
-    for (const faceType of faceTypes) {
-      console.log(`Uploading ${faceType} face...`);
+    // Upload face captures if available
+    let biometricSelfies = {};
+    if (faceCaptures) {
+      console.log('Uploading face captures...');
       try {
-        const result = await uploadSelfieBase64(
-          faceCaptures[faceType], 
-          `${uniqueId}_${faceType}`
-        );
-        uploadedFiles.push(result.public_id);
-        faceImages[faceType] = processFaceUpload(result);
-        console.log(`${faceType} face uploaded:`, result.public_id);
-      } catch (uploadError) {
-        console.error(`Failed to upload ${faceType} face:`, uploadError);
-        throw new Error(`Failed to upload ${faceType} face photo`);
+        for (const angle of ['front', 'left', 'right', 'up']) {
+          if (faceCaptures[angle]) {
+            const result = await uploadBase64ToCloudinary(faceCaptures[angle], 'verifications/selfies');
+            biometricSelfies[angle] = result;
+          }
+        }
+        console.log('Face captures uploaded successfully');
+      } catch (faceError) {
+        console.error('Face upload failed:', faceError);
+        // Continue without face uploads - don't fail the whole submission
       }
     }
 
-    console.log('All files uploaded successfully');
-
-    // ============ DATABASE OPERATIONS ============
-    const db = mongoose.connection.db;
-    const verificationsCollection = db.collection('verifications');
-
-    // Check for existing verification
-    const existingVerification = await verificationsCollection.findOne({
-      userId: new mongoose.Types.ObjectId(userId)
-    });
-
-    console.log('Existing verification:', existingVerification?.status || 'none');
-
-    // Prevent duplicate submissions
-    if (existingVerification && 
-        ['submitted', 'under_automated_verification', 'under_officer_review', 'approved'].includes(existingVerification.status)) {
-      // Cleanup uploaded files
-      for (const publicId of uploadedFiles) {
-        try { await deleteFromCloudinary(publicId); } catch {}
-      }
-      return NextResponse.json({
-        error: 'You already have a pending or approved verification',
-        status: existingVerification.status
-      }, { status: 400 });
-    }
-
-    // Delete old images if resubmitting
-    if (existingVerification) {
-      console.log('Cleaning up old images...');
-      const oldImages = [
-        existingVerification.aadhaarCardImage?.publicId,
-        existingVerification.panCardImage?.publicId,
-        existingVerification.biometricSelfie?.publicId,
-        existingVerification.biometricSelfies?.front?.publicId,
-        existingVerification.biometricSelfies?.left?.publicId,
-        existingVerification.biometricSelfies?.right?.publicId,
-        existingVerification.biometricSelfies?.up?.publicId
-      ].filter(Boolean);
-
-      for (const publicId of oldImages) {
-        try {
-          await deleteFromCloudinary(publicId);
-          console.log('Deleted old image:', publicId);
-        } catch {}
-      }
-    }
-
-    // Prepare verification document
     const now = new Date();
-    
-    // Calculate overall AI score and decision
-    let overallScore = 0;
-    let scoreCount = 0;
-    
-    if (aiVerificationResults.faceVerification) {
-      const faceScore = aiVerificationResults.faceVerification.result.real_probability * 100;
-      overallScore += faceScore;
-      scoreCount++;
-    }
-    
-    if (aiVerificationResults.manipulationDetection?.panCard) {
-      const panScore = aiVerificationResults.manipulationDetection.panCard.result.confidence * 100;
-      overallScore += panScore;
-      scoreCount++;
-    }
-    
-    if (aiVerificationResults.manipulationDetection?.aadhaarCard) {
-      const aadhaarScore = aiVerificationResults.manipulationDetection.aadhaarCard.result.confidence * 100;
-      overallScore += aadhaarScore;
-      scoreCount++;
-    }
-    
-    const finalOverallScore = scoreCount > 0 ? Math.round(overallScore / scoreCount) : 0;
-    
-    // Determine AI decision
-    let aiDecision = 'REVIEW';
-    if (finalOverallScore >= 80) {
-      aiDecision = 'PASS';
-    } else if (finalOverallScore < 50) {
-      aiDecision = 'REJECT';
-    }
-    
-    const verificationDoc = {
-      userId: new mongoose.Types.ObjectId(userId),
+
+    // Create verification document
+    const verificationData = {
+      userId,
       fullName,
       gender,
-      aadhaarCardImage: aadhaarImage,
-      panCardImage: panImage,
-      
-      // Multi-angle biometric selfies
-      biometricSelfies: {
-        front: faceImages.front,
-        left: faceImages.left,
-        right: faceImages.right,
-        up: faceImages.up,
-        capturedAt: now
-      },
-      
-      // Primary selfie (front) for backward compatibility
-      biometricSelfie: {
-        ...faceImages.front,
-        originalFilename: 'selfie_front.jpg',
-        createdAt: now,
-        faceDetected: true,
-        faceConfidence: null
-      },
-      
       addressLine1,
       addressLine2,
       city,
@@ -419,269 +193,76 @@ export async function POST(request) {
       state,
       pincode,
       mobileNumber,
-      behaviorAnalysis,
-      
-      // AI Verification Results
-      aiVerificationResults: {
-        ...aiVerificationResults,
-        overallScore: finalOverallScore,
-        aiDecision: aiDecision,
-        verifiedAt: now
+      aadhaarCardImage: aadhaarUpload,
+      panCardImage: panUpload,
+      biometricSelfies,
+      behaviorAnalysis: {
+        typingSpeed: behaviorData.typingSpeed || 0,
+        mouseMovements: behaviorData.mouseMovements || 0,
+        totalTimeSpent: behaviorData.totalTimeSpent || 0,
+        riskScore: 0,
+        suspiciousActivity: false,
       },
-      
       status: 'submitted',
-      submittedAt: now,
-      updatedAt: now,
       statusHistory: [
-        ...(existingVerification?.statusHistory || []),
         {
           status: 'submitted',
           changedAt: now,
-          remarks: `Application submitted with AI verification (Score: ${finalOverallScore}%, Decision: ${aiDecision})`
+          remarks: 'Application submitted by user'
         }
-      ]
+      ],
+      submittedAt: now,
+      createdAt: now,
+      updatedAt: now,
     };
 
-    // Save to database
-    let verificationId;
+    // Insert into database
+    const result = await db.collection('verifications').insertOne(verificationData);
+    const verificationId = result.insertedId;
 
-    if (existingVerification) {
-      console.log('Updating existing verification...');
-      await verificationsCollection.updateOne(
-        { _id: existingVerification._id },
-        { $set: verificationDoc }
-      );
-      verificationId = existingVerification._id;
-    } else {
-      console.log('Creating new verification...');
-      verificationDoc.createdAt = now;
-      const result = await verificationsCollection.insertOne(verificationDoc);
-      verificationId = result.insertedId;
-    }
+    console.log('Verification created:', verificationId.toString());
 
-    console.log('=== Verification Submit Completed ===');
-    console.log('Verification ID:', verificationId.toString());
-    console.log('AI Verification Score:', finalOverallScore);
-    console.log('AI Decision:', aiDecision);
-
-    // ============ SAVE TO RESULT COLLECTION FOR ADMIN EVALUATION ============
-    try {
-      console.log('Creating admin evaluation result...');
-      
-      // Prepare flags for admin attention
-      const flags = [];
-      
-      // Check face verification
-      if (aiVerificationResults.faceVerification) {
-        const faceResult = aiVerificationResults.faceVerification.result;
-        if (faceResult.decision === 'SUSPECT') {
-          flags.push({
-            type: 'FACE_SUSPECT',
-            severity: 'HIGH',
-            message: `Face verification flagged as SUSPECT with ${(faceResult.fake_probability * 100).toFixed(1)}% fake probability`
-          });
-        } else if (faceResult.decision === 'REVIEW') {
-          flags.push({
-            type: 'MANUAL_REVIEW_REQUIRED',
-            severity: 'MEDIUM',
-            message: `Face verification requires review with ${(faceResult.real_probability * 100).toFixed(1)}% real probability`
-          });
+    // Update user record
+    await db.collection('users').updateOne(
+      { _id: userId },
+      {
+        $set: {
+          verificationStatus: 'submitted',
+          verificationId: verificationId,
+          updatedAt: now,
         }
       }
-      
-      // Check PAN manipulation
-      if (aiVerificationResults.manipulationDetection?.panCard) {
-        const panResult = aiVerificationResults.manipulationDetection.panCard.result;
-        if (panResult.decision === 'FAIL' || !panResult.isAuthentic) {
-          flags.push({
-            type: 'MANIPULATION_DETECTED',
-            severity: 'CRITICAL',
-            message: `PAN card detected as ${panResult.prediction} with ${(panResult.confidence * 100).toFixed(1)}% confidence`
-          });
-        } else if (panResult.confidence < 0.7) {
-          flags.push({
-            type: 'LOW_CONFIDENCE',
-            severity: 'MEDIUM',
-            message: `PAN card authenticity check has low confidence: ${(panResult.confidence * 100).toFixed(1)}%`
-          });
-        }
-      }
-      
-      // Check PAN OCR
-      if (aiVerificationResults.panCardOCR) {
-        const ocrResult = aiVerificationResults.panCardOCR.result;
-        if (!ocrResult.detected) {
-          flags.push({
-            type: 'OCR_FAILED',
-            severity: 'HIGH',
-            message: 'PAN card OCR failed to detect card or extract text'
-          });
-        }
-      }
-      
-      // Overall score check
-      if (finalOverallScore < 50) {
-        flags.push({
-          type: 'MANUAL_REVIEW_REQUIRED',
-          severity: 'CRITICAL',
-          message: `Overall AI score is low: ${finalOverallScore}%`
-        });
-      } else if (finalOverallScore < 80) {
-        flags.push({
-          type: 'MANUAL_REVIEW_REQUIRED',
-          severity: 'MEDIUM',
-          message: `Overall AI score requires review: ${finalOverallScore}%`
-        });
-      }
-      
-      // Get user info from database
-      const usersCollection = db.collection('users');
-      const user = await usersCollection.findOne({ _id: new mongoose.Types.ObjectId(userId) });
-      
-      // Create result document for admin evaluation
-      const resultDoc = new Result({
-        verificationId: verificationId,
-        userId: new mongoose.Types.ObjectId(userId),
-        email: user?.email || 'unknown@email.com',
-        fullName: fullName,
-        
-        documentUrls: {
-          panCardUrl: panImage.secureUrl,
-          faceImageUrls: [
-            faceImages.front.secureUrl,
-            faceImages.left.secureUrl,
-            faceImages.right.secureUrl,
-            faceImages.up.secureUrl
-          ]
-        },
-        
-        aiModelResults: {
-          panCardOCR: aiVerificationResults.panCardOCR ? {
-            model: aiVerificationResults.panCardOCR.model,
-            timestamp: new Date(aiVerificationResults.panCardOCR.timestamp),
-            detected: aiVerificationResults.panCardOCR.result.detected,
-            textData: aiVerificationResults.panCardOCR.result.text_data,
-            boxes: aiVerificationResults.panCardOCR.result.boxes,
-            rawResponse: aiVerificationResults.panCardOCR
-          } : undefined,
-          
-          panCardManipulation: aiVerificationResults.manipulationDetection?.panCard ? {
-            model: 'ELA + CNN',
-            timestamp: new Date(),
-            prediction: aiVerificationResults.manipulationDetection.panCard.result.prediction,
-            isAuthentic: aiVerificationResults.manipulationDetection.panCard.result.is_authentic,
-            confidence: aiVerificationResults.manipulationDetection.panCard.result.confidence,
-            decision: aiVerificationResults.manipulationDetection.panCard.result.decision,
-            rawResponse: aiVerificationResults.manipulationDetection.panCard
-          } : undefined,
-          
-          faceVerification: aiVerificationResults.faceVerification ? {
-            model: aiVerificationResults.faceVerification.model,
-            timestamp: new Date(aiVerificationResults.faceVerification.timestamp),
-            numFrames: aiVerificationResults.faceVerification.result.num_frames,
-            fakeProbability: aiVerificationResults.faceVerification.result.fake_probability,
-            realProbability: aiVerificationResults.faceVerification.result.real_probability,
-            decision: aiVerificationResults.faceVerification.result.decision,
-            rawResponse: aiVerificationResults.faceVerification
-          } : undefined
-        },
-        
-        overallScore: finalOverallScore,
-        aiDecision: aiDecision,
-        
-        adminReview: {
-          status: 'PENDING'
-        },
-        
-        flags: flags,
-        
-        submittedAt: now,
-        
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
-      });
-      
-      await resultDoc.save();
-      console.log('Admin evaluation result created:', resultDoc._id.toString());
-      
-    } catch (resultError) {
-      console.error('Failed to create admin result:', resultError);
-      // Don't fail the whole request if admin result creation fails
-    }
+    );
+
+    // Trigger AI verification (async)
+    triggerAIVerification(verificationId.toString());
 
     return NextResponse.json({
       success: true,
       message: 'Verification submitted successfully',
       verificationId: verificationId.toString(),
-      status: 'submitted',
-      aiVerification: {
-        overallScore: finalOverallScore,
-        decision: aiDecision
-      },
-      selfieUrls: {
-        front: faceImages.front.secureUrl,
-        left: faceImages.left.secureUrl,
-        right: faceImages.right.secureUrl,
-        up: faceImages.up.secureUrl
-      }
+      status: 'submitted'
     });
 
   } catch (error) {
-    console.error('=== Verification Submit Error ===');
-    console.error('Error:', error.message);
-    console.error('Stack:', error.stack);
-
-    // Cleanup uploaded files on error
-    for (const publicId of uploadedFiles) {
-      try {
-        await deleteFromCloudinary(publicId);
-        console.log('Cleaned up:', publicId);
-      } catch {}
-    }
-
-    return NextResponse.json({
-      error: error.message || 'Internal server error'
-    }, { status: 500 });
+    console.error('Submit error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// Add this function to analyze behavior via Python backend
-async function analyzeBehaviorAdvanced(behaviorData) {
-  try {
-    const response = await fetch('http://localhost:8000/api/behavioral/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(behaviorData)
-    });
-    
-    if (response.ok) {
-      return await response.json();
+// Trigger AI verification asynchronously
+function triggerAIVerification(verificationId) {
+  setTimeout(async () => {
+    try {
+      const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      await fetch(`${baseUrl}/api/verification/ai-process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verificationId }),
+      });
+      console.log('AI verification triggered for:', verificationId);
+    } catch (e) {
+      console.error('Failed to trigger AI verification:', e);
     }
-    
-    // Fallback to basic analysis if backend unavailable
-    return fallbackBehaviorAnalysis(behaviorData);
-  } catch (error) {
-    console.log('Behavioral API unavailable, using fallback:', error.message);
-    return fallbackBehaviorAnalysis(behaviorData);
-  }
-}
-
-function fallbackBehaviorAnalysis(behaviorData) {
-  // Basic fallback analysis
-  const botLikelihood = behaviorData.botLikelihood || 30;
-  const flags = behaviorData.flagsDetected || [];
-  
-  return {
-    success: true,
-    analysis: {
-      overall_trust_score: 100 - botLikelihood,
-      bot_likelihood: botLikelihood,
-      risk_level: botLikelihood > 50 ? 'high' : botLikelihood > 25 ? 'medium' : 'low',
-      recommendation: botLikelihood > 50 ? 'manual_review' : 'auto_approve',
-      flags_detected: flags
-    },
-    is_human: botLikelihood < 50,
-    confidence: (100 - botLikelihood) / 100,
-    action_required: botLikelihood > 50 ? 'manual_review' : 'auto_approve'
-  };
+  }, 2000);
 }

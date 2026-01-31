@@ -38,14 +38,15 @@ export default function VerificationFormPage() {
   const { executeRecaptcha } = useGoogleReCaptcha();
   const { getBehaviorData, resetTracking } = useBehaviorTracking();
   
+  // Form submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [captchaVerified, setCaptchaVerified] = useState(false);
   const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState(''); // For showing progress
+  const [submitStatus, setSubmitStatus] = useState('');
 
-  // Form state
+  // Form data state
   const [formData, setFormData] = useState({
     fullName: '',
     gender: '',
@@ -59,7 +60,11 @@ export default function VerificationFormPage() {
     mobileNumber: ''
   });
 
-  // File state
+  // File state - Aadhaar Card
+  const [aadhaarCard, setAadhaarCard] = useState(null);
+  const [aadhaarPreview, setAadhaarPreview] = useState('');
+  
+  // File state - PAN Card
   const [panCard, setPanCard] = useState(null);
   const [panPreview, setPanPreview] = useState('');
   
@@ -119,14 +124,17 @@ export default function VerificationFormPage() {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      setFieldErrors(prev => ({ ...prev, [type]: 'File size must be less than 2MB' }));
+    if (file.size > 5 * 1024 * 1024) {
+      setFieldErrors(prev => ({ ...prev, [type]: 'File size must be less than 5MB' }));
       return;
     }
 
     const previewUrl = URL.createObjectURL(file);
 
-    if (type === 'panCard') {
+    if (type === 'aadhaarCard') {
+      setAadhaarCard(file);
+      setAadhaarPreview(previewUrl);
+    } else if (type === 'panCard') {
       setPanCard(file);
       setPanPreview(previewUrl);
     }
@@ -135,7 +143,10 @@ export default function VerificationFormPage() {
   };
 
   const removeFile = (type) => {
-    if (type === 'panCard') {
+    if (type === 'aadhaarCard') {
+      setAadhaarCard(null);
+      setAadhaarPreview('');
+    } else if (type === 'panCard') {
       setPanCard(null);
       setPanPreview('');
     }
@@ -171,179 +182,71 @@ export default function VerificationFormPage() {
     }
   };
 
-  // Validate form with detailed logging
+  // Validate form
   const validateForm = () => {
     const errors = {};
 
-    console.log('=== Form Validation Started ===');
-    console.log('Form Data:', formData);
-    console.log('Aadhaar Card:', aadhaarCard ? 'Uploaded' : 'Missing');
-    console.log('PAN Card:', panCard ? 'Uploaded' : 'Missing');
-    console.log('Face Captures:', faceCaptures);
-    console.log('Captcha Verified:', captchaVerified);
-
-    // Full Name
     if (!formData.fullName || formData.fullName.trim().length < 3) {
       errors.fullName = 'Full name must be at least 3 characters';
-      console.log('❌ Full name error:', errors.fullName);
     }
 
-    // Gender
     if (!formData.gender) {
       errors.gender = 'Please select your gender';
-      console.log('❌ Gender error:', errors.gender);
     }
 
-    // Address Line 1
     if (!formData.addressLine1 || formData.addressLine1.length < 10) {
       errors.addressLine1 = 'Address must be at least 10 characters';
-      console.log('❌ Address error:', errors.addressLine1);
     }
 
-    // City
     if (!formData.city || formData.city.trim() === '') {
       errors.city = 'City is required';
-      console.log('❌ City error:', errors.city);
     }
 
-    // Taluka
     if (!formData.taluka || formData.taluka.trim() === '') {
       errors.taluka = 'Taluka is required';
-      console.log('❌ Taluka error:', errors.taluka);
     }
 
-    // District
     if (!formData.district || formData.district.trim() === '') {
       errors.district = 'District is required';
-      console.log('❌ District error:', errors.district);
     }
 
-    // State
     if (!formData.state) {
       errors.state = 'State is required';
-      console.log('❌ State error:', errors.state);
     }
 
-    // Pincode
     if (!/^[0-9]{6}$/.test(formData.pincode)) {
       errors.pincode = 'Pincode must be exactly 6 digits';
-      console.log('❌ Pincode error:', errors.pincode);
     }
 
-    // Mobile Number
     if (!/^[0-9]{10}$/.test(formData.mobileNumber)) {
       errors.mobileNumber = 'Mobile number must be exactly 10 digits';
-      console.log('❌ Mobile error:', errors.mobileNumber);
     }
 
-    // Aadhaar Card
     if (!aadhaarCard) {
       errors.aadhaarCard = 'Aadhaar card image is required';
-      console.log('❌ Aadhaar error:', errors.aadhaarCard);
     }
 
-    // PAN Card
     if (!panCard) {
       errors.panCard = 'PAN card image is required';
-      console.log('❌ PAN error:', errors.panCard);
     }
 
-    
-    // Face Captures
     if (!faceCaptures || !faceCaptures.front || !faceCaptures.left || !faceCaptures.right || !faceCaptures.up) {
       errors.faceCaptures = 'All 4 face photos are required (front, left, right, up)';
-      console.log('❌ Face captures error:', errors.faceCaptures);
     }
     
-    // Captcha
     if (!captchaVerified) {
       errors.captcha = 'Please verify the captcha';
-      console.log('❌ Captcha error:', errors.captcha);
     }
-
-    console.log('=== Validation Complete ===');
-    console.log('Total Errors:', Object.keys(errors).length);
-    console.log('Error Details:', errors);
 
     setFieldErrors(errors);
-    
-    // Log validation errors for debugging
-    if (Object.keys(errors).length > 0) {
-      console.log('Form validation failed:', errors);
-    }
-    
     return Object.keys(errors).length === 0;
   };
 
-  // Helper function to convert base64 to blob
-  const base64ToBlob = (base64Data) => {
-    const parts = base64Data.split(',');
-    const contentType = parts[0].match(/:(.*?);/)[1];
-    const raw = atob(parts[1]);
-    const rawLength = raw.length;
-    const uint8Array = new Uint8Array(rawLength);
-    
-    for (let i = 0; i < rawLength; i++) {
-      uint8Array[i] = raw.charCodeAt(i);
-    }
-    
-    return new Blob([uint8Array], { type: contentType });
-  };
-
-  // Upload face images to Cloudinary
-  const uploadFaceImagesToCloudinary = async () => {
-    const uploadPromises = ['front', 'left', 'right', 'up'].map(async (angle) => {
-      const imageData = faceCaptures[angle];
-      const blob = base64ToBlob(imageData);
-      const formData = new FormData();
-      formData.append('file', blob, `face_${angle}.jpg`);
-      formData.append('upload_preset', process.env.CLOUDINARY_UPLOAD_PRESET || 'ml_default');
-      formData.append('folder', 'kyc_verification/faces');
-      
-      const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`;
-      
-      const response = await fetch(cloudinaryUrl, {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to upload ${angle} face image to Cloudinary`);
-      }
-      
-      const data = await response.json();
-      return data.secure_url;
-    });
-    
-    return Promise.all(uploadPromises);
-  };
-
-  // Upload document images to Cloudinary
-  const uploadDocumentToCloudinary = async (file, documentType) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', process.env.CLOUDINARY_UPLOAD_PRESET || 'ml_default');
-    formData.append('folder', `kyc_verification/documents/${documentType}`);
-    
-    const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`;
-    
-    const response = await fetch(cloudinaryUrl, {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to upload ${documentType} to Cloudinary`);
-    }
-    
-    const data = await response.json();
-    return data.secure_url;
-  };
-
-  // Submit form
+  // Submit form - Send everything to API for processing
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
+    setFieldErrors({});
     
     console.log('Form submit triggered');
 
@@ -355,22 +258,13 @@ export default function VerificationFormPage() {
     }
 
     if (!validateForm()) {
-      // Show specific error message
-      const errorCount = Object.keys(fieldErrors).length;
-      setSubmitError(`Please fix ${errorCount} error(s) in the form. Check highlighted fields.`);
-      
-      // Scroll to first error
-      const firstErrorField = Object.keys(fieldErrors)[0];
-      const element = document.getElementById(firstErrorField);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      setSubmitError('Please fix the errors in the form.');
       return;
     }
 
     console.log('Form validation passed, starting submission...');
     setIsSubmitting(true);
-    setSubmitStatus('');
+    setSubmitStatus('Preparing your application...');
 
     try {
       let recaptchaToken = '';
@@ -378,86 +272,9 @@ export default function VerificationFormPage() {
         recaptchaToken = await executeRecaptcha('verification_submit');
       }
       
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
-      
-      // Step 1: Upload PAN card to Cloudinary
-      setSubmitStatus('Uploading PAN card...');
-      const panCardUrl = await uploadDocumentToCloudinary(panCard, 'pan');
-      
-      // Step 2: Verify PAN card with OCR
-      setSubmitStatus('Verifying PAN card details...');
-      const panOCRResponse = await fetch(`${backendUrl}/pan/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image_url: panCardUrl
-        })
-      });
-      
-      if (!panOCRResponse.ok) {
-        throw new Error('PAN card verification failed. Please ensure the image is clear.');
-      }
-      
-      const panOCRResult = await panOCRResponse.json();
-      console.log('PAN OCR result:', panOCRResult);
-      
-      // Step 4: Check PAN card for manipulation
-      setSubmitStatus('Checking PAN card authenticity...');
-      const panManipulationResponse = await fetch(`${backendUrl}/manipulation/check`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image_url: panCardUrl
-        })
-      });
-      
-      if (!panManipulationResponse.ok) {
-        throw new Error('PAN card authenticity check failed.');
-      }
-      
-      const panManipulationResult = await panManipulationResponse.json();
-      console.log('PAN manipulation result:', panManipulationResult);
-      
-      // Check if PAN card is authentic
-      if (panManipulationResult.result.decision === 'FAIL') {
-        throw new Error('PAN card appears to be manipulated. Please upload an original document.');
-      }
-      
-      // Step 5: Upload face images to Cloudinary
-      setSubmitStatus('Uploading face images...');
-      const faceImageUrls = await uploadFaceImagesToCloudinary();
-      
-      // Step 7: Call backend face verification API
-      setSubmitStatus('Verifying face authenticity...');
-      const faceVerifyResponse = await fetch(`${backendUrl}/face/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          frame_urls: faceImageUrls
-        })
-      });
-      
-      if (!faceVerifyResponse.ok) {
-        throw new Error('Face verification failed. Please try again.');
-      }
-      
-      const faceVerificationResult = await faceVerifyResponse.json();
-      console.log('Face verification result:', faceVerificationResult);
-      
-      // Check if face verification passed
-      if (faceVerificationResult.result.decision === 'SUSPECT') {
-        throw new Error('Face verification detected potential issues. Please ensure good lighting and try again.');
-      }
-      
-      // Step 8: Prepare form submission with all AI results
-      setSubmitStatus('Submitting your application...');
       const behaviorData = getBehaviorData();
+      
+      // Create FormData and send everything to our API
       const submitData = new FormData();
       
       // Add form fields
@@ -466,51 +283,16 @@ export default function VerificationFormPage() {
       });
 
       // Add document files
+      submitData.append('aadhaarCard', aadhaarCard);
       submitData.append('panCard', panCard);
       
-      // Add AI verification results
-      submitData.append('aiVerificationResults', JSON.stringify({
-        faceVerification: {
-          ...faceVerificationResult,
-          faceImageUrls: faceImageUrls,
-          verified: faceVerificationResult.result.decision === 'PASS'
-        },
-        panCardOCR: {
-          ...panOCRResult,
-          imageUrl: panCardUrl,
-          verified: panOCRResult.result.detected === true
-        },
-        manipulationDetection: {
-          panCard: {
-            ...panManipulationResult,
-            imageUrl: panCardUrl,
-            verified: panManipulationResult.result.decision === 'PASS'
-          }
-        }
-      }));
-      
-      // Add document URLs
-      submitData.append('panCardUrl', panCardUrl);
-      
-      // Add face verification results and URLs
-      submitData.append('faceVerificationResult', JSON.stringify(faceVerificationResult));
-      submitData.append('faceImageUrls', JSON.stringify(faceImageUrls));
-      
-      // Add all 4 face captures as JSON (base64)
+      // Add face captures as JSON (base64)
       submitData.append('faceCaptures', JSON.stringify(faceCaptures));
-      
-      // Add individual captures for backward compatibility
-      if (faceCaptures) {
-        submitData.append('selfieFront', faceCaptures.front);
-        submitData.append('selfieLeft', faceCaptures.left);
-        submitData.append('selfieRight', faceCaptures.right);
-        submitData.append('selfieUp', faceCaptures.up);
-      }
       
       submitData.append('recaptchaToken', recaptchaToken);
       submitData.append('behaviorData', JSON.stringify(behaviorData));
 
-      console.log('Submitting form data...');
+      setSubmitStatus('Uploading documents and verifying...');
 
       const response = await fetch('/api/verification/submit', {
         method: 'POST',
@@ -530,7 +312,9 @@ export default function VerificationFormPage() {
         throw new Error(data.error || data.errors?.join(', ') || 'Submission failed');
       }
 
+      setSubmitStatus('Success! Redirecting...');
       router.push('/verification/status?success=true');
+      
     } catch (error) {
       console.error('Submit error:', error);
       setSubmitError(error.message || 'An error occurred during submission');
@@ -571,7 +355,7 @@ export default function VerificationFormPage() {
             </p>
           </div>
 
-          {/* Error Summary Box */}
+          {/* Error Summary */}
           {(submitError || errorCount > 0) && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
@@ -590,6 +374,7 @@ export default function VerificationFormPage() {
             </Alert>
           )}
           
+          {/* Submit Status */}
           {submitStatus && !submitError && (
             <Alert className="mb-6 border-blue-500 bg-blue-50">
               <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
@@ -682,7 +467,7 @@ export default function VerificationFormPage() {
                       <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                       <Label htmlFor="aadhaarUpload" className="cursor-pointer block">
                         <span className="text-primary hover:underline font-medium">Click to upload Aadhaar Card</span>
-                        <p className="text-xs text-muted-foreground mt-1">JPG, PNG (Max 2MB)</p>
+                        <p className="text-xs text-muted-foreground mt-1">JPG, PNG (Max 5MB)</p>
                       </Label>
                       <Input 
                         id="aadhaarUpload" 
@@ -724,7 +509,7 @@ export default function VerificationFormPage() {
                       <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                       <Label htmlFor="panUpload" className="cursor-pointer block">
                         <span className="text-primary hover:underline font-medium">Click to upload PAN Card</span>
-                        <p className="text-xs text-muted-foreground mt-1">JPG, PNG (Max 2MB)</p>
+                        <p className="text-xs text-muted-foreground mt-1">JPG, PNG (Max 5MB)</p>
                       </Label>
                       <Input 
                         id="panUpload" 
@@ -898,7 +683,7 @@ export default function VerificationFormPage() {
               </CardContent>
             </Card>
 
-            {/* Section 5: Multi-Angle Face Capture */}
+            {/* Section 5: Face Capture */}
             <Card className={`border ${fieldErrors.faceCaptures ? 'border-destructive' : 'border-border'}`}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -929,7 +714,7 @@ export default function VerificationFormPage() {
               </CardContent>
             </Card>
 
-            {/* Section 6: Security Verification */}
+            {/* Section 6: Security */}
             <Card className={`border ${fieldErrors.captcha ? 'border-destructive' : 'border-border'}`}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -942,7 +727,7 @@ export default function VerificationFormPage() {
                   <Alert className="border-green-500 bg-green-50">
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <AlertDescription className="text-green-600 font-medium">
-                      Security verification completed successfully!
+                      Security verification completed!
                     </AlertDescription>
                   </Alert>
                 ) : (
@@ -977,7 +762,7 @@ export default function VerificationFormPage() {
                 <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
                   <div className={`flex items-center gap-2 ${formData.fullName && formData.gender ? 'text-green-600' : 'text-muted-foreground'}`}>
                     {formData.fullName && formData.gender ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-                    Personal Info
+                    Personal
                   </div>
                   <div className={`flex items-center gap-2 ${aadhaarCard && panCard ? 'text-green-600' : 'text-muted-foreground'}`}>
                     {aadhaarCard && panCard ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
@@ -989,7 +774,7 @@ export default function VerificationFormPage() {
                   </div>
                   <div className={`flex items-center gap-2 ${allFacesCaptured ? 'text-green-600' : 'text-muted-foreground'}`}>
                     {allFacesCaptured ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-                    Face Photos
+                    Face
                   </div>
                   <div className={`flex items-center gap-2 ${captchaVerified ? 'text-green-600' : 'text-muted-foreground'}`}>
                     {captchaVerified ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
@@ -1019,8 +804,8 @@ export default function VerificationFormPage() {
                   ⚠️ {!allFacesCaptured && !captchaVerified 
                     ? 'Complete face capture and security verification' 
                     : !allFacesCaptured 
-                      ? 'Capture all 4 face photos to continue' 
-                      : 'Complete security verification to continue'}
+                      ? 'Capture all 4 face photos' 
+                      : 'Complete security verification'}
                 </p>
               )}
             </div>
