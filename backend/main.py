@@ -1,5 +1,3 @@
-# backend/main.py
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.behavioral_analysis import router as behavioral_router
@@ -27,6 +25,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(behavioral_router)
+app.include_router(manipulation_router)
+app.include_router(face_router)
 
 if face_biometrics_router:
     app.include_router(face_biometrics_router)
