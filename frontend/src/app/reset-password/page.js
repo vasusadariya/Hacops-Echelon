@@ -3,12 +3,24 @@
 import { useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useResetPassword } from '@/hooks/use-auth';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+
+import {
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+} from 'lucide-react';
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
@@ -37,7 +49,7 @@ function ResetPasswordContent() {
     }
 
     if (!token) {
-      setError('Invalid reset token');
+      setError('Invalid or expired reset link');
       return;
     }
 
@@ -48,18 +60,24 @@ function ResetPasswordContent() {
         router.push('/auth');
       }, 3000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to reset password');
+      setError(
+        err.response?.data?.message ||
+          'Unable to reset password at this time'
+      );
     }
   };
 
+  /* Invalid token state */
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-purple-50 p-4">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
+        <Card className="w-full max-w-md border border-border shadow-sm">
           <CardContent className="pt-6">
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>Invalid or missing reset token</AlertDescription>
+              <AlertDescription>
+                Invalid or missing password reset link.
+              </AlertDescription>
             </Alert>
           </CardContent>
         </Card>
@@ -68,65 +86,86 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-purple-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl">Reset Password</CardTitle>
-          <CardDescription>Enter your new password</CardDescription>
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
+      <Card className="w-full max-w-md border border-border shadow-sm">
+        <CardHeader className="text-center space-y-2">
+          <div className="mx-auto text-3xl">🏛️</div>
+
+          <CardTitle className="text-xl font-semibold">
+            Reset Password
+          </CardTitle>
+
+          <CardDescription>
+            Set a new password for your account
+          </CardDescription>
         </CardHeader>
+
         <CardContent>
           {success ? (
             <Alert>
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>
-                Password reset successfully! Redirecting to login...
+                Password has been reset successfully.
+                Redirecting to login…
               </AlertDescription>
             </Alert>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+
               {error && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
+                  <AlertDescription>
+                    {error}
+                  </AlertDescription>
                 </Alert>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="password">New Password</Label>
+                <Label htmlFor="password">
+                  New Password
+                </Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) =>
+                    setPassword(e.target.value)
+                  }
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Label htmlFor="confirm-password">
+                  Confirm New Password
+                </Label>
                 <Input
                   id="confirm-password"
                   type="password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) =>
+                    setConfirmPassword(e.target.value)
+                  }
                   required
                 />
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full" 
+              <Button
+                type="submit"
+                className="w-full"
                 disabled={resetPasswordMutation.isPending}
               >
                 {resetPasswordMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Resetting...
+                    Updating password…
                   </>
                 ) : (
-                  'Reset Password'
+                  'Update Password'
                 )}
               </Button>
+
             </form>
           )}
         </CardContent>
@@ -137,11 +176,13 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
       <ResetPasswordContent />
     </Suspense>
   );
