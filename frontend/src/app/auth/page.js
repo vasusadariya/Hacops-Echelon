@@ -2,337 +2,279 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { useAuth } from '@/hooks/use-auth'; // Updated import
-
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
-
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, Shield, User } from 'lucide-react';
 
 export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
-  // Use the unified useAuth hook
-  const { user, isAuthenticated, loading: userLoading, login, register } = useAuth();
+  const redirect = searchParams.get('redirect');
+  const { user, login, register, loading: authLoading } = useAuth();
 
+  const [activeTab, setActiveTab] = useState('login');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Login state
+  // Login form state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  // Signup state
-  const [signupName, setSignupName] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  // Register form state
+  const [registerName, setRegisterName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
 
-  // Get redirect URL from query params
-  const redirectUrl = searchParams.get('redirect') || '/dashboard';
-
-  // Redirect if already authenticated
+  // Redirect if already logged in
   useEffect(() => {
-    if (isAuthenticated && !userLoading) {
-      router.push(redirectUrl);
+    if (user) {
+      // Redirect based on role
+      if (user.role === 'officer') {
+        router.push('/officer');
+      } else if (redirect) {
+        router.push(redirect);
+      } else {
+        router.push('/dashboard');
+      }
     }
-  }, [isAuthenticated, userLoading, router, redirectUrl]);
-
-  // Check for error in URL params
-  useEffect(() => {
-    const errorParam = searchParams.get('error');
-    if (errorParam) {
-      setError('Authentication failed. Please try again.');
-    }
-  }, [searchParams]);
+  }, [user, router, redirect]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
+    setLoading(true);
 
     try {
       const result = await login(loginEmail, loginPassword);
-      
+
       if (result.success) {
-        router.push(redirectUrl);
+        // Redirect based on role
+        if (result.user.role === 'officer') {
+          router.push('/officer');
+        } else if (redirect) {
+          router.push(redirect);
+        } else {
+          router.push('/dashboard');
+        }
       } else {
-        setError(result.error || 'Login failed. Please check your credentials.');
+        setError(result.error || 'Invalid email or password');
       }
     } catch (err) {
-      console.error('Login error:', err);
-      setError(err.message || 'Login failed. Please try again.');
+      setError('Login failed. Please try again.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleSignup = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
 
-    // Validation
-    if (signupPassword !== confirmPassword) {
+    if (registerPassword !== registerConfirmPassword) {
       setError('Passwords do not match');
       return;
     }
 
-    if (signupPassword.length < 6) {
+    if (registerPassword.length < 6) {
       setError('Password must be at least 6 characters');
       return;
     }
 
-    if (signupName.trim().length < 2) {
-      setError('Please enter your full name');
-      return;
-    }
-
-    setIsLoading(true);
+    setLoading(true);
 
     try {
-      const result = await register(signupName, signupEmail, signupPassword);
-      
+      const result = await register(registerName, registerEmail, registerPassword);
+
       if (result.success) {
-        router.push(redirectUrl);
+        if (redirect) {
+          router.push(redirect);
+        } else {
+          router.push('/dashboard');
+        }
       } else {
-        setError(result.error || 'Registration failed. Please try again.');
+        setError(result.error || 'Registration failed');
       }
     } catch (err) {
-      console.error('Signup error:', err);
-      setError(err.message || 'Registration failed. Please try again.');
+      setError('Registration failed. Please try again.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  // Show loading while checking auth state
-  if (userLoading) {
+  if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  // Don't render form if already authenticated (will redirect)
-  if (isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-          <p className="mt-4 text-muted-foreground">Redirecting...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-md border border-border shadow-sm">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto text-3xl">🏛️</div>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col">
+      {/* Header */}
+      <header className="bg-white border-b py-4 px-6">
+        <div className="max-w-7xl mx-auto flex items-center gap-3">
+          <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center text-2xl">
+            🏛️
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-gray-800">
+              National Identity Verification Portal
+            </h1>
+            <p className="text-xs text-gray-500">Government of India</p>
+          </div>
+        </div>
+      </header>
 
-          <CardTitle className="text-xl font-semibold">
-            National Identity Verification Portal
-          </CardTitle>
+      {/* Main Content */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-lg border-0">
+          <CardHeader className="text-center pb-2">
+            <CardTitle className="text-2xl">Welcome</CardTitle>
+            <CardDescription>
+              Login or create an account to continue
+            </CardDescription>
+          </CardHeader>
 
-          <CardDescription>
-            Secure access for registered users
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid grid-cols-2 mb-4">
-              <TabsTrigger value="login">
-                Login
-              </TabsTrigger>
-              <TabsTrigger value="signup">
-                Register
-              </TabsTrigger>
-            </TabsList>
-
+          <CardContent>
             {error && (
               <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  {error}
-                </AlertDescription>
+                <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
-            {/* LOGIN TAB */}
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">
-                    Email Address
-                  </Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="name@example.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    disabled={isLoading}
-                    required
-                  />
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="login">Login</TabsTrigger>
+                <TabsTrigger value="register">Register</TabsTrigger>
+              </TabsList>
+
+              {/* Login Tab */}
+              <TabsContent value="login">
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password">Password</Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="Enter your password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Logging in...</>
+                    ) : (
+                      'Login'
+                    )}
+                  </Button>
+                </form>
+
+                {/* Officer Login Info */}
+                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Shield className="h-5 w-5 text-yellow-600 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-yellow-800">Verification Officers</p>
+                      <p className="text-yellow-700 text-xs mt-1">
+                        Use your official credentials provided by the department to access the Officer Portal.
+                      </p>
+                    </div>
+                  </div>
                 </div>
+              </TabsContent>
 
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">
-                    Password
-                  </Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
+              {/* Register Tab */}
+              <TabsContent value="register">
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="register-name">Full Name</Label>
+                    <Input
+                      id="register-name"
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={registerName}
+                      onChange={(e) => setRegisterName(e.target.value)}
+                      required
+                    />
+                  </div>
 
-                <div className="text-right">
-                  <Link
-                    href="/forgot-password"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="register-email">Email</Label>
+                    <Input
+                      id="register-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={registerEmail}
+                      onChange={(e) => setRegisterEmail(e.target.value)}
+                      required
+                    />
+                  </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in…
-                    </>
-                  ) : (
-                    'Login'
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
+                  <div className="space-y-2">
+                    <Label htmlFor="register-password">Password</Label>
+                    <Input
+                      id="register-password"
+                      type="password"
+                      placeholder="Create a password"
+                      value={registerPassword}
+                      onChange={(e) => setRegisterPassword(e.target.value)}
+                      required
+                    />
+                  </div>
 
-            {/* SIGNUP TAB */}
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">
-                    Full Name
-                  </Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="register-confirm">Confirm Password</Label>
+                    <Input
+                      id="register-confirm"
+                      type="password"
+                      placeholder="Confirm your password"
+                      value={registerConfirmPassword}
+                      onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                      required
+                    />
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">
-                    Email Address
-                  </Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="name@example.com"
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating account...</>
+                    ) : (
+                      'Create Account'
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">
-                    Password
-                  </Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="At least 6 characters"
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">
-                    Confirm Password
-                  </Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="Confirm your password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account…
-                    </>
-                  ) : (
-                    'Register'
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-
-          {/* Additional Info */}
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>
-              By continuing, you agree to our{' '}
-              <Link href="/terms" className="text-primary hover:underline">
-                Terms of Service
-              </Link>{' '}
-              and{' '}
-              <Link href="/privacy" className="text-primary hover:underline">
-                Privacy Policy
-              </Link>
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Footer */}
+      <footer className="py-4 text-center text-sm text-gray-500 border-t bg-white">
+        © 2024 Government of India. All Rights Reserved.
+      </footer>
     </div>
   );
 }

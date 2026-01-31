@@ -325,7 +325,7 @@ export function MultiAngleFaceCapture({ onCaptureComplete, onRemove, initialCapt
 
       {/* ========== IDLE MODE ========== */}
       {mode === 'idle' && !allCaptured && (
-        <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-gradient-to-b from-orange-50 to-white">
+        <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-linear-to-b from-orange-50 to-white">
           <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Camera className="h-10 w-10 text-orange-500" />
           </div>
@@ -532,7 +532,7 @@ export function MultiAngleFaceCapture({ onCaptureComplete, onRemove, initialCapt
               return (
                 <div key={step.id} className="relative group">
                   <div 
-                    className="aspect-[3/4] rounded-lg overflow-hidden border-2 border-green-500 shadow-md cursor-pointer"
+                    className="aspect-3/4 rounded-lg overflow-hidden border-2 border-green-500 shadow-md cursor-pointer"
                     onClick={() => setPreviewImage({ url: img, label: step.label })}
                   >
                     <img 
@@ -541,7 +541,7 @@ export function MultiAngleFaceCapture({ onCaptureComplete, onRemove, initialCapt
                       className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" 
                     />
                   </div>
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2 rounded-b-lg">
+                  <div className="absolute bottom-0 inset-x-0 bg-linear-to-t from-black/70 to-transparent p-2 rounded-b-lg">
                     <div className="flex items-center justify-center gap-1 text-white text-xs">
                       <Icon className="h-3 w-3" /> 
                       {step.id.charAt(0).toUpperCase() + step.id.slice(1)}

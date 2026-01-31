@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 const AuthContext = createContext(null);
 
@@ -9,160 +9,139 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
-  // Get token from localStorage
-  const getToken = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('token');
+  // Check for existing token on mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      setToken(storedToken);
+      fetchUser(storedToken);
+    } else {
+      setLoading(false);
     }
-    return null;
   }, []);
 
-  // Fetch current user
-  const fetchUser = useCallback(async () => {
-    const storedToken = getToken();
-    
-    if (!storedToken) {
-      setLoading(false);
-      setIsAuthenticated(false);
-      setUser(null);
-      setToken(null);
-      return;
-    }
-
+  const fetchUser = async (authToken) => {
     try {
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${storedToken}`
-        }
+      const res = await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${authToken}` }
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (res.ok) {
+        const data = await res.json();
         setUser(data.user);
-        setToken(storedToken);
-        setIsAuthenticated(true);
       } else {
-        // Token is invalid, clear it
         localStorage.removeItem('token');
-        setUser(null);
         setToken(null);
-        setIsAuthenticated(false);
+        setUser(null);
       }
     } catch (error) {
-      console.error('Auth fetch error:', error);
+      console.error('Failed to fetch user:', error);
       localStorage.removeItem('token');
-      setUser(null);
       setToken(null);
-      setIsAuthenticated(false);
+      setUser(null);
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  };
 
-  // Initialize auth on mount
-  useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
-
-  // Login function
   const login = async (email, password) => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (response.ok) {
+      if (res.ok && data.token) {
         localStorage.setItem('token', data.token);
         setToken(data.token);
         setUser(data.user);
-        setIsAuthenticated(true);
-        return { success: true, user: data.user };
-      } else {
-        return { success: false, error: data.error || 'Login failed' };
+        
+        return { 
+          success: true, 
+          user: data.user,
+          // Return redirect path based on role
+          redirectPath: data.user.role === 'officer' ? '/officer' : '/dashboard'
+        };
       }
+
+      return { success: false, error: data.error || 'Login failed' };
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, error: 'Network error' };
+      return { success: false, error: 'Network error. Please try again.' };
     }
   };
 
-  // Register function
   const register = async (name, email, password) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password })
       });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (response.ok) {
+      if (res.ok && data.token) {
         localStorage.setItem('token', data.token);
         setToken(data.token);
         setUser(data.user);
-        setIsAuthenticated(true);
         return { success: true, user: data.user };
-      } else {
-        return { success: false, error: data.error || 'Registration failed' };
       }
+
+      return { success: false, error: data.error || 'Registration failed' };
     } catch (error) {
-      console.error('Register error:', error);
-      return { success: false, error: 'Network error' };
+      return { success: false, error: 'Network error. Please try again.' };
     }
   };
 
-  // Logout function
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
-    setUser(null);
     setToken(null);
-    setIsAuthenticated(false);
-    router.push('/');
+    setUser(null);
+    
+    // Redirect based on current path
+    if (pathname?.startsWith('/officer')) {
+      router.push('/auth');
+    } else {
+      router.push('/');
+    }
+  }, [router, pathname]);
+
+  const getToken = () => {
+    return token || localStorage.getItem('token');
   };
 
-  // Refresh auth state
-  const refreshAuth = () => {
-    fetchUser();
-  };
-
-  const value = {
-    user,
-    token,
-    loading,
-    isAuthenticated,
-    login,
-    register,
-    logout,
-    refreshAuth,
-    getToken
-  };
+  const isOfficer = user?.role === 'officer';
+  const isAdmin = user?.role === 'admin';
+  const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      user,
+      token,
+      loading,
+      login,
+      register,
+      logout,
+      getToken,
+      isAuthenticated,
+      isOfficer,
+      isAdmin
+    }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Hook to use auth context
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 }
-
-export default AuthContext;
