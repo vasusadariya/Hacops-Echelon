@@ -1,25 +1,23 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = '30d';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-export function generateToken(user) {
-  return jwt.sign(
-    {
-      id: user._id.toString(),
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
-  );
+export function signToken(payload, expiresIn = '7d') {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
 }
 
 export function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    if (!token) {
+      console.error('No token provided to verifyToken');
+      return null;
+    }
+    
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log('Token verified successfully for user:', decoded.userId);
+    return decoded;
   } catch (error) {
+    console.error('Token verification error:', error.message);
     return null;
   }
 }
@@ -28,6 +26,7 @@ export function decodeToken(token) {
   try {
     return jwt.decode(token);
   } catch (error) {
+    console.error('Token decode error:', error.message);
     return null;
   }
 }

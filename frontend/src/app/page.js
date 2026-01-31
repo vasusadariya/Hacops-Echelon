@@ -1,3 +1,4 @@
+
 import { Footer } from "@/components/footer";
 import { HeroSection } from "@/components/hero-section";
 import { HowItWorks } from "@/components/how-it-works";
