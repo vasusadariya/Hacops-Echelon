@@ -96,7 +96,7 @@ export default function VerificationFormPage() {
         processedValue = value.replace(/[^a-zA-Z\s]/g, '').slice(0, 60);
         break;
       case 'documentIdNumber':
-        processedValue = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 16);
+        processedValue = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 10);
         break;
       case 'city':
       case 'taluka':
@@ -487,28 +487,6 @@ export default function VerificationFormPage() {
                     className={fieldErrors.documentIdNumber ? 'border-destructive' : ''}
                   />
                   {fieldErrors.documentIdNumber && <p className="text-sm text-destructive">{fieldErrors.documentIdNumber}</p>}
-                </div>
-
-                {/* Aadhaar Upload */}
-                <div className="space-y-2">
-                  <Label>Aadhaar Card <span className="text-destructive">*</span></Label>
-                  {aadhaarPreview ? (
-                    <div className="relative inline-block">
-                      <img src={aadhaarPreview} alt="Aadhaar" className="max-w-xs h-auto rounded-lg border" />
-                      <Button type="button" variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6" onClick={() => removeFile('aadhaarCard')}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50">
-                      <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                      <Label htmlFor="aadhaarUpload" className="cursor-pointer">
-                        <span className="text-primary hover:underline">Click to upload</span>
-                      </Label>
-                      <Input id="aadhaarUpload" type="file" accept=".jpg,.jpeg,.png" className="hidden" onChange={(e) => handleFileChange('aadhaarCard', e.target.files[0])} />
-                    </div>
-                  )}
-                  {fieldErrors.aadhaarCard && <p className="text-sm text-destructive">{fieldErrors.aadhaarCard}</p>}
                 </div>
 
                 {/* PAN Upload */}
