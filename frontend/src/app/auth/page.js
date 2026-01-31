@@ -30,12 +30,12 @@ export default function AuthPage() {
   const t = useTranslations('auth');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: user, isLoading: userLoading } = useCurrentUser();
-
-  const loginMutation = useLogin();
-  const registerMutation = useRegister();
+  
+  // Use the unified useAuth hook
+  const { user, isAuthenticated, loading: userLoading, login, register } = useAuth();
 
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -47,12 +47,17 @@ export default function AuthPage() {
   const [signupPassword, setSignupPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  useEffect(() => {
-    if (user && !userLoading) {
-      router.push('/dashboard');
-    }
-  }, [user, userLoading, router]);
+  // Get redirect URL from query params
+  const redirectUrl = searchParams.get('redirect') || '/dashboard';
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && !userLoading) {
+      router.push(redirectUrl);
+    }
+  }, [isAuthenticated, userLoading, router, redirectUrl]);
+
+  // Check for error in URL params
   useEffect(() => {
     const errorParam = searchParams.get('error');
     if (errorParam) {
@@ -63,14 +68,21 @@ export default function AuthPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
+
     try {
-      await loginMutation.mutateAsync({
-        email: loginEmail,
-        password: loginPassword,
-      });
-      router.push('/dashboard');
+      const result = await login(loginEmail, loginPassword);
+      
+      if (result.success) {
+        router.push(redirectUrl);
+      } else {
+        setError(result.error || 'Login failed. Please check your credentials.');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      console.error('Login error:', err);
+      setError(err.message || 'Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -78,6 +90,7 @@ export default function AuthPage() {
     e.preventDefault();
     setError('');
 
+    // Validation
     if (signupPassword !== confirmPassword) {
       setError(t('passwordMismatch'));
       return;
@@ -88,15 +101,26 @@ export default function AuthPage() {
       return;
     }
 
+    if (signupName.trim().length < 2) {
+      setError('Please enter your full name');
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
-      await registerMutation.mutateAsync({
-        name: signupName,
-        email: signupEmail,
-        password: signupPassword,
-      });
-      router.push('/dashboard');
+      const result = await register(signupName, signupEmail, signupPassword);
+      
+      if (result.success) {
+        router.push(redirectUrl);
+      } else {
+        setError(result.error || 'Registration failed. Please try again.');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Signup failed');
+      console.error('Signup error:', err);
+      setError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -106,6 +130,18 @@ export default function AuthPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Don't render form if already authenticated (will redirect)
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+          <p className="mt-4 text-muted-foreground">Redirecting...</p>
+        </div>
       </div>
     );
   }
@@ -145,7 +181,7 @@ export default function AuthPage() {
               </Alert>
             )}
 
-            {/* LOGIN */}
+            {/* LOGIN TAB */}
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
@@ -169,6 +205,7 @@ export default function AuthPage() {
                   <Input
                     id="login-password"
                     type="password"
+                    placeholder="Enter your password"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     required
@@ -197,7 +234,7 @@ export default function AuthPage() {
               </form>
             </TabsContent>
 
-            {/* SIGNUP */}
+            {/* SIGNUP TAB */}
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
@@ -207,6 +244,7 @@ export default function AuthPage() {
                   <Input
                     id="signup-name"
                     type="text"
+                    placeholder="Enter your full name"
                     value={signupName}
                     onChange={(e) => setSignupName(e.target.value)}
                     required
@@ -220,6 +258,7 @@ export default function AuthPage() {
                   <Input
                     id="signup-email"
                     type="email"
+                    placeholder="name@example.com"
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
                     required
@@ -233,6 +272,7 @@ export default function AuthPage() {
                   <Input
                     id="signup-password"
                     type="password"
+                    placeholder="At least 6 characters"
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
                     required
@@ -246,6 +286,7 @@ export default function AuthPage() {
                   <Input
                     id="confirm-password"
                     type="password"
+                    placeholder="Confirm your password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
@@ -265,6 +306,20 @@ export default function AuthPage() {
               </form>
             </TabsContent>
           </Tabs>
+
+          {/* Additional Info */}
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            <p>
+              By continuing, you agree to our{' '}
+              <Link href="/terms" className="text-primary hover:underline">
+                Terms of Service
+              </Link>{' '}
+              and{' '}
+              <Link href="/privacy" className="text-primary hover:underline">
+                Privacy Policy
+              </Link>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

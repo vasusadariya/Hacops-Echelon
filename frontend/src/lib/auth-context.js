@@ -1,73 +1,168 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import api from './axios';
 
-const AuthContext = createContext({});
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    checkAuth();
+  // Get token from localStorage
+  const getToken = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('token');
+    }
+    return null;
   }, []);
 
-  const checkAuth = async () => {
+  // Fetch current user
+  const fetchUser = useCallback(async () => {
+    const storedToken = getToken();
+    
+    if (!storedToken) {
+      setLoading(false);
+      setIsAuthenticated(false);
+      setUser(null);
+      setToken(null);
+      return;
+    }
+
     try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        const response = await api.get('/api/auth/me');
-        setUser(response.data.user);
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${storedToken}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        setToken(storedToken);
+        setIsAuthenticated(true);
+      } else {
+        // Token is invalid, clear it
+        localStorage.removeItem('token');
+        setUser(null);
+        setToken(null);
+        setIsAuthenticated(false);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('Auth fetch error:', error);
       localStorage.removeItem('token');
       setUser(null);
+      setToken(null);
+      setIsAuthenticated(false);
     } finally {
       setLoading(false);
     }
-  };
+  }, [getToken]);
 
+  // Initialize auth on mount
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
+  // Login function
   const login = async (email, password) => {
-    const response = await api.post('/api/auth/login', { email, password });
-    localStorage.setItem('token', response.data.token);
-    setUser(response.data.user);
-    router.push('/dashboard');
-    return response.data;
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        setToken(data.token);
+        setUser(data.user);
+        setIsAuthenticated(true);
+        return { success: true, user: data.user };
+      } else {
+        return { success: false, error: data.error || 'Login failed' };
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: 'Network error' };
+    }
   };
 
+  // Register function
   const register = async (name, email, password) => {
-    const response = await api.post('/api/auth/register', {
-      name,
-      email,
-      password,
-    });
-    return login(email, password);
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name, email, password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        setToken(data.token);
+        setUser(data.user);
+        setIsAuthenticated(true);
+        return { success: true, user: data.user };
+      } else {
+        return { success: false, error: data.error || 'Registration failed' };
+      }
+    } catch (error) {
+      console.error('Register error:', error);
+      return { success: false, error: 'Network error' };
+    }
   };
 
+  // Logout function
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
+    setToken(null);
+    setIsAuthenticated(false);
     router.push('/');
   };
 
+  // Refresh auth state
+  const refreshAuth = () => {
+    fetchUser();
+  };
+
+  const value = {
+    user,
+    token,
+    loading,
+    isAuthenticated,
+    login,
+    register,
+    logout,
+    refreshAuth,
+    getToken
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        login,
-        register,
-        logout,
-        loading,
-        isAuthenticated: !!user,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+// Hook to use auth context
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
+
+export default AuthContext;

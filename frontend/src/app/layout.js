@@ -2,6 +2,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import QueryProvider from "@/providers/query-provider";
 import { AuthProvider } from "@/lib/auth-context";
+import { ReCaptchaProvider } from '@/providers/recaptcha-provider';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 
@@ -22,13 +23,13 @@ export default async function RootLayout({ children }) {
   const messages = await getMessages();
 
   return (
-    <html lang={locale} className="hydrated">
-      <body className={inter.className}>
-        <NextIntlClientProvider messages={messages}>
-          <QueryProvider>
-            <AuthProvider>{children}</AuthProvider>
-          </QueryProvider>
-        </NextIntlClientProvider>
+    <html lang="en" className="hydrated">
+      <body
+        className={inter.className}
+      >
+        <QueryProvider>
+          <AuthProvider> <ReCaptchaProvider>{children}</ReCaptchaProvider></AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );
