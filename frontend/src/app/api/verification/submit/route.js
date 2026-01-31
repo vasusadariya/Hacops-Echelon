@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import { verifyToken } from '@/lib/jwt';
 import { uploadSelfieBase64, uploadDocument, deleteFromCloudinary } from '@/lib/cloudinary';
+import Result from '@/models/result';
 
 // ============ HELPER FUNCTIONS ============
 
@@ -156,6 +157,22 @@ export async function POST(request) {
       behaviorData = JSON.parse(formData.get('behaviorData') || '{}');
     } catch {}
     const behaviorAnalysis = analyzeBehavior(behaviorData);
+
+    // Parse AI verification results
+    let aiVerificationResults = {};
+    const aiResultsJson = formData.get('aiVerificationResults');
+    if (aiResultsJson) {
+      try {
+        aiVerificationResults = JSON.parse(aiResultsJson);
+        console.log('AI Verification Results received:', {
+          faceVerification: !!aiVerificationResults.faceVerification,
+          panCardOCR: !!aiVerificationResults.panCardOCR,
+          manipulationDetection: !!aiVerificationResults.manipulationDetection
+        });
+      } catch (e) {
+        console.warn('Failed to parse AI verification results:', e);
+      }
+    }
 
     // ============ PARSE FACE CAPTURES (4 ANGLES) ============
     let faceCaptures = {};
@@ -340,6 +357,39 @@ export async function POST(request) {
 
     // Prepare verification document
     const now = new Date();
+    
+    // Calculate overall AI score and decision
+    let overallScore = 0;
+    let scoreCount = 0;
+    
+    if (aiVerificationResults.faceVerification) {
+      const faceScore = aiVerificationResults.faceVerification.result.real_probability * 100;
+      overallScore += faceScore;
+      scoreCount++;
+    }
+    
+    if (aiVerificationResults.manipulationDetection?.panCard) {
+      const panScore = aiVerificationResults.manipulationDetection.panCard.result.confidence * 100;
+      overallScore += panScore;
+      scoreCount++;
+    }
+    
+    if (aiVerificationResults.manipulationDetection?.aadhaarCard) {
+      const aadhaarScore = aiVerificationResults.manipulationDetection.aadhaarCard.result.confidence * 100;
+      overallScore += aadhaarScore;
+      scoreCount++;
+    }
+    
+    const finalOverallScore = scoreCount > 0 ? Math.round(overallScore / scoreCount) : 0;
+    
+    // Determine AI decision
+    let aiDecision = 'REVIEW';
+    if (finalOverallScore >= 80) {
+      aiDecision = 'PASS';
+    } else if (finalOverallScore < 50) {
+      aiDecision = 'REJECT';
+    }
+    
     const verificationDoc = {
       userId: new mongoose.Types.ObjectId(userId),
       fullName,
@@ -375,6 +425,15 @@ export async function POST(request) {
       pincode,
       mobileNumber,
       behaviorAnalysis,
+      
+      // AI Verification Results
+      aiVerificationResults: {
+        ...aiVerificationResults,
+        overallScore: finalOverallScore,
+        aiDecision: aiDecision,
+        verifiedAt: now
+      },
+      
       status: 'submitted',
       submittedAt: now,
       updatedAt: now,
@@ -383,7 +442,7 @@ export async function POST(request) {
         {
           status: 'submitted',
           changedAt: now,
-          remarks: 'Application submitted with 4-angle face verification'
+          remarks: `Application submitted with AI verification (Score: ${finalOverallScore}%, Decision: ${aiDecision})`
         }
       ]
     };
@@ -407,12 +466,163 @@ export async function POST(request) {
 
     console.log('=== Verification Submit Completed ===');
     console.log('Verification ID:', verificationId.toString());
+    console.log('AI Verification Score:', finalOverallScore);
+    console.log('AI Decision:', aiDecision);
+
+    // ============ SAVE TO RESULT COLLECTION FOR ADMIN EVALUATION ============
+    try {
+      console.log('Creating admin evaluation result...');
+      
+      // Prepare flags for admin attention
+      const flags = [];
+      
+      // Check face verification
+      if (aiVerificationResults.faceVerification) {
+        const faceResult = aiVerificationResults.faceVerification.result;
+        if (faceResult.decision === 'SUSPECT') {
+          flags.push({
+            type: 'FACE_SUSPECT',
+            severity: 'HIGH',
+            message: `Face verification flagged as SUSPECT with ${(faceResult.fake_probability * 100).toFixed(1)}% fake probability`
+          });
+        } else if (faceResult.decision === 'REVIEW') {
+          flags.push({
+            type: 'MANUAL_REVIEW_REQUIRED',
+            severity: 'MEDIUM',
+            message: `Face verification requires review with ${(faceResult.real_probability * 100).toFixed(1)}% real probability`
+          });
+        }
+      }
+      
+      // Check PAN manipulation
+      if (aiVerificationResults.manipulationDetection?.panCard) {
+        const panResult = aiVerificationResults.manipulationDetection.panCard.result;
+        if (panResult.decision === 'FAIL' || !panResult.isAuthentic) {
+          flags.push({
+            type: 'MANIPULATION_DETECTED',
+            severity: 'CRITICAL',
+            message: `PAN card detected as ${panResult.prediction} with ${(panResult.confidence * 100).toFixed(1)}% confidence`
+          });
+        } else if (panResult.confidence < 0.7) {
+          flags.push({
+            type: 'LOW_CONFIDENCE',
+            severity: 'MEDIUM',
+            message: `PAN card authenticity check has low confidence: ${(panResult.confidence * 100).toFixed(1)}%`
+          });
+        }
+      }
+      
+      // Check PAN OCR
+      if (aiVerificationResults.panCardOCR) {
+        const ocrResult = aiVerificationResults.panCardOCR.result;
+        if (!ocrResult.detected) {
+          flags.push({
+            type: 'OCR_FAILED',
+            severity: 'HIGH',
+            message: 'PAN card OCR failed to detect card or extract text'
+          });
+        }
+      }
+      
+      // Overall score check
+      if (finalOverallScore < 50) {
+        flags.push({
+          type: 'MANUAL_REVIEW_REQUIRED',
+          severity: 'CRITICAL',
+          message: `Overall AI score is low: ${finalOverallScore}%`
+        });
+      } else if (finalOverallScore < 80) {
+        flags.push({
+          type: 'MANUAL_REVIEW_REQUIRED',
+          severity: 'MEDIUM',
+          message: `Overall AI score requires review: ${finalOverallScore}%`
+        });
+      }
+      
+      // Get user info from database
+      const usersCollection = db.collection('users');
+      const user = await usersCollection.findOne({ _id: new mongoose.Types.ObjectId(userId) });
+      
+      // Create result document for admin evaluation
+      const resultDoc = new Result({
+        verificationId: verificationId,
+        userId: new mongoose.Types.ObjectId(userId),
+        email: user?.email || 'unknown@email.com',
+        fullName: fullName,
+        
+        documentUrls: {
+          panCardUrl: panImage.secureUrl,
+          faceImageUrls: [
+            faceImages.front.secureUrl,
+            faceImages.left.secureUrl,
+            faceImages.right.secureUrl,
+            faceImages.up.secureUrl
+          ]
+        },
+        
+        aiModelResults: {
+          panCardOCR: aiVerificationResults.panCardOCR ? {
+            model: aiVerificationResults.panCardOCR.model,
+            timestamp: new Date(aiVerificationResults.panCardOCR.timestamp),
+            detected: aiVerificationResults.panCardOCR.result.detected,
+            textData: aiVerificationResults.panCardOCR.result.text_data,
+            boxes: aiVerificationResults.panCardOCR.result.boxes,
+            rawResponse: aiVerificationResults.panCardOCR
+          } : undefined,
+          
+          panCardManipulation: aiVerificationResults.manipulationDetection?.panCard ? {
+            model: 'ELA + CNN',
+            timestamp: new Date(),
+            prediction: aiVerificationResults.manipulationDetection.panCard.result.prediction,
+            isAuthentic: aiVerificationResults.manipulationDetection.panCard.result.is_authentic,
+            confidence: aiVerificationResults.manipulationDetection.panCard.result.confidence,
+            decision: aiVerificationResults.manipulationDetection.panCard.result.decision,
+            rawResponse: aiVerificationResults.manipulationDetection.panCard
+          } : undefined,
+          
+          faceVerification: aiVerificationResults.faceVerification ? {
+            model: aiVerificationResults.faceVerification.model,
+            timestamp: new Date(aiVerificationResults.faceVerification.timestamp),
+            numFrames: aiVerificationResults.faceVerification.result.num_frames,
+            fakeProbability: aiVerificationResults.faceVerification.result.fake_probability,
+            realProbability: aiVerificationResults.faceVerification.result.real_probability,
+            decision: aiVerificationResults.faceVerification.result.decision,
+            rawResponse: aiVerificationResults.faceVerification
+          } : undefined
+        },
+        
+        overallScore: finalOverallScore,
+        aiDecision: aiDecision,
+        
+        adminReview: {
+          status: 'PENDING'
+        },
+        
+        flags: flags,
+        
+        submittedAt: now,
+        
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+        userAgent: request.headers.get('user-agent') || 'unknown'
+      });
+      
+      await resultDoc.save();
+      console.log('Admin evaluation result created:', resultDoc._id.toString());
+      
+    } catch (resultError) {
+      console.error('Failed to create admin result:', resultError);
+      // Don't fail the whole request if admin result creation fails
+    }
 
     return NextResponse.json({
       success: true,
       message: 'Verification submitted successfully',
       verificationId: verificationId.toString(),
       status: 'submitted',
+      aiVerification: {
+        overallScore: finalOverallScore,
+        decision: aiDecision
+      },
       selfieUrls: {
         front: faceImages.front.secureUrl,
         left: faceImages.left.secureUrl,

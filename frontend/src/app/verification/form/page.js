@@ -62,9 +62,7 @@ export default function VerificationFormPage() {
   });
 
   // File state
-  const [aadhaarCard, setAadhaarCard] = useState(null);
   const [panCard, setPanCard] = useState(null);
-  const [aadhaarPreview, setAadhaarPreview] = useState('');
   const [panPreview, setPanPreview] = useState('');
   
   // Multi-angle selfie captures
@@ -133,10 +131,7 @@ export default function VerificationFormPage() {
 
     const previewUrl = URL.createObjectURL(file);
 
-    if (type === 'aadhaarCard') {
-      setAadhaarCard(file);
-      setAadhaarPreview(previewUrl);
-    } else if (type === 'panCard') {
+    if (type === 'panCard') {
       setPanCard(file);
       setPanPreview(previewUrl);
     }
@@ -145,10 +140,7 @@ export default function VerificationFormPage() {
   };
 
   const removeFile = (type) => {
-    if (type === 'aadhaarCard') {
-      setAadhaarCard(null);
-      setAadhaarPreview('');
-    } else if (type === 'panCard') {
+    if (type === 'panCard') {
       setPanCard(null);
       setPanPreview('');
     }
@@ -212,7 +204,6 @@ export default function VerificationFormPage() {
     if (!/^[0-9]{10}$/.test(formData.mobileNumber)) {
       errors.mobileNumber = 'Mobile number must be exactly 10 digits';
     }
-    if (!aadhaarCard) errors.aadhaarCard = 'Aadhaar card image is required';
     if (!panCard) errors.panCard = 'PAN card image is required';
     
     // Check all face captures
@@ -223,6 +214,12 @@ export default function VerificationFormPage() {
     if (!captchaVerified) errors.captcha = 'Please verify the captcha';
 
     setFieldErrors(errors);
+    
+    // Log validation errors for debugging
+    if (Object.keys(errors).length > 0) {
+      console.log('Form validation failed:', errors);
+    }
+    
     return Object.keys(errors).length === 0;
   };
 
@@ -269,10 +266,34 @@ export default function VerificationFormPage() {
     return Promise.all(uploadPromises);
   };
 
+  // Upload document images to Cloudinary
+  const uploadDocumentToCloudinary = async (file, documentType) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', process.env.CLOUDINARY_UPLOAD_PRESET || 'ml_default');
+    formData.append('folder', `kyc_verification/documents/${documentType}`);
+    
+    const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`;
+    
+    const response = await fetch(cloudinaryUrl, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to upload ${documentType} to Cloudinary`);
+    }
+    
+    const data = await response.json();
+    return data.secure_url;
+  };
+
   // Submit form
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError('');
+    
+    console.log('Form submit triggered');
 
     const currentToken = getCurrentToken();
     if (!currentToken) {
@@ -286,6 +307,7 @@ export default function VerificationFormPage() {
       return;
     }
 
+    console.log('Form validation passed, starting submission...');
     setIsSubmitting(true);
     setSubmitStatus('');
 
@@ -295,13 +317,61 @@ export default function VerificationFormPage() {
         recaptchaToken = await executeRecaptcha('verification_submit');
       }
       
-      // Step 1: Upload face images to Cloudinary
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      
+      // Step 1: Upload PAN card to Cloudinary
+      setSubmitStatus('Uploading PAN card...');
+      const panCardUrl = await uploadDocumentToCloudinary(panCard, 'pan');
+      
+      // Step 2: Verify PAN card with OCR
+      setSubmitStatus('Verifying PAN card details...');
+      const panOCRResponse = await fetch(`${backendUrl}/pan/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image_url: panCardUrl
+        })
+      });
+      
+      if (!panOCRResponse.ok) {
+        throw new Error('PAN card verification failed. Please ensure the image is clear.');
+      }
+      
+      const panOCRResult = await panOCRResponse.json();
+      console.log('PAN OCR result:', panOCRResult);
+      
+      // Step 4: Check PAN card for manipulation
+      setSubmitStatus('Checking PAN card authenticity...');
+      const panManipulationResponse = await fetch(`${backendUrl}/manipulation/check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image_url: panCardUrl
+        })
+      });
+      
+      if (!panManipulationResponse.ok) {
+        throw new Error('PAN card authenticity check failed.');
+      }
+      
+      const panManipulationResult = await panManipulationResponse.json();
+      console.log('PAN manipulation result:', panManipulationResult);
+      
+      // Check if PAN card is authentic
+      if (panManipulationResult.result.decision === 'FAIL') {
+        throw new Error('PAN card appears to be manipulated. Please upload an original document.');
+      }
+      
+      // Step 5: Upload face images to Cloudinary
       setSubmitStatus('Uploading face images...');
       const faceImageUrls = await uploadFaceImagesToCloudinary();
       
-      // Step 2: Call backend face verification API
+      // Step 7: Call backend face verification API
       setSubmitStatus('Verifying face authenticity...');
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
       const faceVerifyResponse = await fetch(`${backendUrl}/face/verify`, {
         method: 'POST',
         headers: {
@@ -324,7 +394,7 @@ export default function VerificationFormPage() {
         throw new Error('Face verification detected potential issues. Please ensure good lighting and try again.');
       }
       
-      // Step 3: Prepare form submission
+      // Step 8: Prepare form submission with all AI results
       setSubmitStatus('Submitting your application...');
       const behaviorData = getBehaviorData();
       const submitData = new FormData();
@@ -335,8 +405,31 @@ export default function VerificationFormPage() {
       });
 
       // Add document files
-      submitData.append('aadhaarCard', aadhaarCard);
       submitData.append('panCard', panCard);
+      
+      // Add AI verification results
+      submitData.append('aiVerificationResults', JSON.stringify({
+        faceVerification: {
+          ...faceVerificationResult,
+          faceImageUrls: faceImageUrls,
+          verified: faceVerificationResult.result.decision === 'PASS'
+        },
+        panCardOCR: {
+          ...panOCRResult,
+          imageUrl: panCardUrl,
+          verified: panOCRResult.result.detected === true
+        },
+        manipulationDetection: {
+          panCard: {
+            ...panManipulationResult,
+            imageUrl: panCardUrl,
+            verified: panManipulationResult.result.decision === 'PASS'
+          }
+        }
+      }));
+      
+      // Add document URLs
+      submitData.append('panCardUrl', panCardUrl);
       
       // Add face verification results and URLs
       submitData.append('faceVerificationResult', JSON.stringify(faceVerificationResult));
