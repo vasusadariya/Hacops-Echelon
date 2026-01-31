@@ -1,5 +1,3 @@
-# backend/models/face_biometrics.py
-
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from typing import List
 from PIL import Image
