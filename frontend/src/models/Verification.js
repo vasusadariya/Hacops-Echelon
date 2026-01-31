@@ -151,6 +151,71 @@ const verificationSchema = new mongoose.Schema({
   // Behavior Analysis Data
   behaviorAnalysis: behaviorAnalysisSchema,
 
+  // AI Model Verification Results
+  aiVerificationResults: {
+    // Face Biometrics Verification
+    faceVerification: {
+      model: { type: String },
+      timestamp: { type: Date },
+      result: {
+        num_frames: { type: Number },
+        fake_probability: { type: Number },
+        real_probability: { type: Number },
+        decision: { type: String, enum: ['PASS', 'REVIEW', 'SUSPECT'] }
+      },
+      faceImageUrls: [String],
+      verified: { type: Boolean, default: false }
+    },
+
+    // PAN Card OCR Verification
+    panCardOCR: {
+      model: { type: String },
+      timestamp: { type: Date },
+      result: {
+        detected: { type: Boolean },
+        boxes: [mongoose.Schema.Types.Mixed],
+        text_data: [mongoose.Schema.Types.Mixed]
+      },
+      imageUrl: { type: String },
+      verified: { type: Boolean, default: false }
+    },
+
+    // Image Manipulation Detection
+    manipulationDetection: {
+      panCard: {
+        model: { type: String },
+        timestamp: { type: Date },
+        result: {
+          prediction: { type: String, enum: ['Forged', 'Authentic'] },
+          is_authentic: { type: Boolean },
+          confidence: { type: Number },
+          raw_output: { type: Number },
+          decision: { type: String, enum: ['PASS', 'FAIL'] }
+        },
+        imageUrl: { type: String },
+        verified: { type: Boolean, default: false }
+      },
+      aadhaarCard: {
+        model: { type: String },
+        timestamp: { type: Date },
+        result: {
+          prediction: { type: String, enum: ['Forged', 'Authentic'] },
+          is_authentic: { type: Boolean },
+          confidence: { type: Number },
+          raw_output: { type: Number },
+          decision: { type: String, enum: ['PASS', 'FAIL'] }
+        },
+        imageUrl: { type: String },
+        verified: { type: Boolean, default: false }
+      }
+    },
+
+    // Overall AI Verification Summary
+    overallScore: { type: Number, min: 0, max: 100 },
+    aiDecision: { type: String, enum: ['PASS', 'REVIEW', 'REJECT'] },
+    verifiedAt: { type: Date }
+  },
+
   // Verification Status
   status: {
     type: String,

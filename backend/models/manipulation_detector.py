@@ -16,6 +16,7 @@ router = APIRouter(
     tags=["Image Manipulation Detection"]
 )
 
+
 # ------------------------
 # Configuration
 # ------------------------
