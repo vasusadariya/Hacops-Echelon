@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/lib/auth-context';
 import Navbar from '@/components/navbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,8 +22,10 @@ import {
   ArrowRight,
   User,
   FileCheck,
-  ZoomIn,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp
 } from 'lucide-react';
 import { Footer } from '@/components/footer';
 
@@ -60,17 +62,24 @@ const statusConfig = {
   },
   approved: {
     label: 'Approved',
-    color: 'bg-secondary/10 text-secondary',
+    color: 'bg-green-100 text-green-700',
     icon: CheckCircle,
     description: 'Congratulations! Your identity has been successfully verified.'
   },
   rejected: {
     label: 'Rejected',
-    color: 'bg-destructive/10 text-destructive',
+    color: 'bg-red-100 text-red-700',
     icon: XCircle,
     description: 'Your application was not approved. Please review the reason below.'
   }
 };
+
+const faceAngles = [
+  { id: 'front', label: 'Front', icon: User },
+  { id: 'left', label: 'Left', icon: ChevronLeft },
+  { id: 'right', label: 'Right', icon: ChevronRight },
+  { id: 'up', label: 'Up', icon: ChevronUp }
+];
 
 export default function VerificationStatusPage() {
   const router = useRouter();
@@ -81,7 +90,7 @@ export default function VerificationStatusPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
-  const [showSelfieModal, setShowSelfieModal] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     if (searchParams.get('success') === 'true') {
@@ -105,14 +114,10 @@ export default function VerificationStatusPage() {
     
     try {
       const response = await fetch('/api/verification/status', {
-        headers: {
-          'Authorization': `Bearer ${currentToken}`
-        }
+        headers: { 'Authorization': `Bearer ${currentToken}` }
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch status');
-      }
+      if (!response.ok) throw new Error('Failed to fetch status');
       
       const data = await response.json();
       setStatus(data);
@@ -130,6 +135,7 @@ export default function VerificationStatusPage() {
     }
   }, [token]);
 
+  // Auto refresh for pending statuses
   useEffect(() => {
     if (status && ['submitted', 'under_automated_verification', 'under_officer_review'].includes(status.status)) {
       const interval = setInterval(fetchStatus, 30000);
@@ -156,33 +162,23 @@ export default function VerificationStatusPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Selfie Full Preview Modal */}
-      {showSelfieModal && status?.selfieUrl && (
+      {/* Image Preview Modal */}
+      {previewImage && (
         <div 
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowSelfieModal(false)}
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
         >
-          <div className="relative max-w-lg w-full">
+          <div className="relative max-w-2xl w-full">
             <Button
               variant="ghost"
               size="icon"
               className="absolute -top-12 right-0 text-white hover:bg-white/20"
-              onClick={() => setShowSelfieModal(false)}
+              onClick={() => setPreviewImage(null)}
             >
               <X className="h-6 w-6" />
             </Button>
-            <img 
-              src={status.selfieUrl} 
-              alt="Verification Selfie" 
-              className="w-full h-auto rounded-lg shadow-2xl"
-            />
-            <p className="text-center text-white mt-4 text-sm">
-              Selfie captured on {status.submittedAt ? new Date(status.submittedAt).toLocaleDateString('en-IN', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-              }) : 'N/A'}
-            </p>
+            <img src={previewImage.url} alt={previewImage.label} className="w-full rounded-lg" />
+            <p className="text-center text-white mt-4">{previewImage.label}</p>
           </div>
         </div>
       )}
@@ -191,11 +187,11 @@ export default function VerificationStatusPage() {
         <div className="max-w-2xl mx-auto">
           {/* Success Alert */}
           {showSuccess && (
-            <Alert className="mb-6 border-secondary/50 bg-secondary/10">
-              <CheckCircle className="h-4 w-4 text-secondary" />
-              <AlertTitle className="text-secondary">Submission Successful</AlertTitle>
-              <AlertDescription>
-                Your verification application has been submitted successfully.
+            <Alert className="mb-6 border-green-500 bg-green-50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertTitle className="text-green-700">Submission Successful</AlertTitle>
+              <AlertDescription className="text-green-600">
+                Your verification application has been submitted successfully with all 4 face photos.
               </AlertDescription>
             </Alert>
           )}
@@ -207,53 +203,27 @@ export default function VerificationStatusPage() {
             </Alert>
           )}
 
-          {/* User Profile Card with Selfie */}
+          {/* User Profile Card */}
           {status && status.status !== 'not_started' && (
             <Card className="border-border mb-6">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
-                  {/* Selfie Avatar - Clickable for preview */}
-                  <div 
-                    className="relative cursor-pointer group"
-                    onClick={() => status.selfieUrl && setShowSelfieModal(true)}
-                  >
-                    <Avatar className="h-20 w-20 border-2 border-primary/20 group-hover:border-primary/50 transition-colors">
-                      {status.selfieThumbUrl || status.selfieUrl ? (
-                        <AvatarImage 
-                          src={status.selfieThumbUrl || status.selfieUrl} 
-                          alt="Profile" 
-                          className="object-cover"
-                        />
-                      ) : (
-                        <AvatarFallback className="bg-primary/10">
-                          <User className="h-10 w-10 text-primary" />
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                    {/* Zoom indicator on hover */}
-                    {(status.selfieThumbUrl || status.selfieUrl) && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 rounded-full transition-colors">
-                        <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
+                  <Avatar className="h-16 w-16 border-2 border-primary/20">
+                    {status.selfieThumbUrl ? (
+                      <AvatarImage src={status.selfieThumbUrl} alt="Profile" />
+                    ) : (
+                      <AvatarFallback className="bg-primary/10">
+                        <User className="h-8 w-8 text-primary" />
+                      </AvatarFallback>
                     )}
-                  </div>
-                  
+                  </Avatar>
                   <div className="flex-1">
-                    <h2 className="text-lg font-semibold text-foreground">
-                      {status.fullName || 'Applicant'}
-                    </h2>
+                    <h2 className="text-lg font-semibold">{status.fullName || 'Applicant'}</h2>
                     <p className="text-sm text-muted-foreground">
-                      Application ID: {status.verificationId?.slice(-8).toUpperCase()}
+                      ID: {status.verificationId?.slice(-8).toUpperCase()}
                     </p>
-                    {(status.selfieThumbUrl || status.selfieUrl) && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Click on photo to view full selfie
-                      </p>
-                    )}
                   </div>
-                  <Badge className={config.color}>
-                    {config.label}
-                  </Badge>
+                  <Badge className={config.color}>{config.label}</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -269,22 +239,77 @@ export default function VerificationStatusPage() {
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-muted-foreground">{config.description}</p>
-              
               {status?.submittedAt && (
                 <p className="text-sm text-muted-foreground mt-4">
-                  Submitted on: {new Date(status.submittedAt).toLocaleDateString('en-IN', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
+                  Submitted: {new Date(status.submittedAt).toLocaleDateString('en-IN', {
+                    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
                   })}
                 </p>
               )}
             </CardContent>
           </Card>
 
-          {/* Documents Uploaded Status */}
+          {/* Face Photos Grid */}
+          {status?.selfieUrls && Object.values(status.selfieUrls).some(url => url) && (
+            <Card className="border-border mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <User className="h-5 w-5 text-primary" />
+                  Face Verification Photos
+                </CardTitle>
+                <CardDescription>4-angle face capture for secure verification</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {faceAngles.map(({ id, label, icon: Icon }) => {
+                    const url = status.selfieUrls?.[id];
+                    const thumbUrl = status.selfieThumbUrls?.[id];
+                    const hasImage = !!url;
+                    
+                    return (
+                      <div key={id} className="relative group">
+                        <div 
+                          className={`aspect-square rounded-lg overflow-hidden border-2 ${
+                            hasImage ? 'border-green-500 cursor-pointer' : 'border-gray-200'
+                          }`}
+                          onClick={() => hasImage && setPreviewImage({ url, label: `${label} View` })}
+                        >
+                          {hasImage ? (
+                            <img
+                              src={thumbUrl || url}
+                              alt={`${label} view`}
+                              className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                              <Icon className="h-8 w-8 text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-1 text-center">
+                          <span className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                            <Icon className="h-3 w-3" />
+                            {label}
+                          </span>
+                          {hasImage && (
+                            <Badge variant="outline" className="mt-1 text-xs bg-green-50 text-green-700 border-green-200">
+                              <CheckCircle className="h-2 w-2 mr-1" />
+                              Captured
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground text-center mt-4">
+                  Click on any photo to view full size
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Documents Status */}
           {status?.documentsUploaded && (
             <Card className="border-border mb-6">
               <CardHeader>
@@ -294,43 +319,37 @@ export default function VerificationStatusPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className={`w-12 h-12 rounded-full mx-auto flex items-center justify-center ${status.documentsUploaded.aadhaar ? 'bg-secondary/10' : 'bg-muted'}`}>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 rounded-lg bg-muted/50">
+                    <div className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
+                      status.documentsUploaded.aadhaar ? 'bg-green-100' : 'bg-gray-100'
+                    }`}>
                       {status.documentsUploaded.aadhaar ? (
-                        <CheckCircle className="h-6 w-6 text-secondary" />
+                        <CheckCircle className="h-5 w-5 text-green-600" />
                       ) : (
-                        <XCircle className="h-6 w-6 text-muted-foreground" />
+                        <XCircle className="h-5 w-5 text-gray-400" />
                       )}
                     </div>
-                    <p className="text-sm mt-2 text-muted-foreground">Aadhaar</p>
+                    <p className="text-sm mt-2">Aadhaar Card</p>
                   </div>
-                  <div className="text-center">
-                    <div className={`w-12 h-12 rounded-full mx-auto flex items-center justify-center ${status.documentsUploaded.pan ? 'bg-secondary/10' : 'bg-muted'}`}>
+                  <div className="text-center p-3 rounded-lg bg-muted/50">
+                    <div className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
+                      status.documentsUploaded.pan ? 'bg-green-100' : 'bg-gray-100'
+                    }`}>
                       {status.documentsUploaded.pan ? (
-                        <CheckCircle className="h-6 w-6 text-secondary" />
+                        <CheckCircle className="h-5 w-5 text-green-600" />
                       ) : (
-                        <XCircle className="h-6 w-6 text-muted-foreground" />
+                        <XCircle className="h-5 w-5 text-gray-400" />
                       )}
                     </div>
-                    <p className="text-sm mt-2 text-muted-foreground">PAN Card</p>
-                  </div>
-                  <div className="text-center">
-                    <div className={`w-12 h-12 rounded-full mx-auto flex items-center justify-center ${status.documentsUploaded.selfie ? 'bg-secondary/10' : 'bg-muted'}`}>
-                      {status.documentsUploaded.selfie ? (
-                        <CheckCircle className="h-6 w-6 text-secondary" />
-                      ) : (
-                        <XCircle className="h-6 w-6 text-muted-foreground" />
-                      )}
-                    </div>
-                    <p className="text-sm mt-2 text-muted-foreground">Selfie</p>
+                    <p className="text-sm mt-2">PAN Card</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Next Step Card */}
+          {/* Next Step */}
           {status?.nextStep && (
             <Card className="border-border mb-6">
               <CardHeader>
@@ -355,34 +374,27 @@ export default function VerificationStatusPage() {
           )}
 
           {/* Status History */}
-          {status?.statusHistory && status.statusHistory.length > 0 && (
+          {status?.statusHistory?.length > 0 && (
             <Card className="border-border mb-6">
               <CardHeader>
                 <CardTitle className="text-lg">Status History</CardTitle>
-                <CardDescription>Track your application progress</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {status.statusHistory.slice().reverse().map((history, index) => (
                     <div key={index} className="flex items-start gap-4">
-                      <div className="w-3 h-3 rounded-full bg-primary mt-1.5 flex-shrink-0"></div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground">
+                      <div className="w-3 h-3 rounded-full bg-primary mt-1.5" />
+                      <div>
+                        <p className="font-medium">
                           {statusConfig[history.status]?.label || history.status}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {new Date(history.changedAt).toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
+                            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                           })}
                         </p>
                         {history.remarks && (
-                          <p className="text-sm text-muted-foreground mt-1 italic">
-                            "{history.remarks}"
-                          </p>
+                          <p className="text-sm text-muted-foreground italic">"{history.remarks}"</p>
                         )}
                       </div>
                     </div>
@@ -395,41 +407,25 @@ export default function VerificationStatusPage() {
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {currentStatus === 'not_started' && (
-              <Button 
-                onClick={() => router.push('/verification/form')}
-                className="bg-primary hover:bg-primary/90"
-              >
-                Start Verification
-                <ArrowRight className="ml-2 h-4 w-4" />
+              <Button onClick={() => router.push('/verification/form')} className="bg-primary">
+                Start Verification <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
             
             {currentStatus === 'rejected' && (
-              <Button 
-                onClick={() => router.push('/verification/form')}
-                className="bg-primary hover:bg-primary/90"
-              >
-                Resubmit Application
-                <ArrowRight className="ml-2 h-4 w-4" />
+              <Button onClick={() => router.push('/verification/form')} className="bg-primary">
+                Resubmit Application <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             )}
             
             {['submitted', 'under_automated_verification', 'under_officer_review'].includes(currentStatus) && (
-              <Button 
-                variant="outline"
-                onClick={fetchStatus}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh Status
+              <Button variant="outline" onClick={fetchStatus}>
+                <RefreshCw className="mr-2 h-4 w-4" /> Refresh Status
               </Button>
             )}
             
-            <Button 
-              variant="outline"
-              onClick={() => router.push('/')}
-            >
-              <Home className="mr-2 h-4 w-4" />
-              Back to Home
+            <Button variant="outline" onClick={() => router.push('/')}>
+              <Home className="mr-2 h-4 w-4" /> Back to Home
             </Button>
           </div>
         </div>

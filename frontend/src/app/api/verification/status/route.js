@@ -6,6 +6,7 @@ import { getOptimizedUrl } from '@/lib/cloudinary';
 
 export async function GET(request) {
   try {
+    // Auth check
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -36,7 +37,7 @@ export async function GET(request) {
       });
     }
 
-    // Determine next step
+    // Determine next step message
     let nextStep = '';
     switch (verification.status) {
       case 'draft':
@@ -46,10 +47,10 @@ export async function GET(request) {
         nextStep = 'Your application is being processed. Please wait.';
         break;
       case 'under_automated_verification':
-        nextStep = 'Automated checks in progress.';
+        nextStep = 'Automated checks in progress. This may take a few minutes.';
         break;
       case 'under_officer_review':
-        nextStep = 'Under manual review by verification officer.';
+        nextStep = 'Under manual review by a verification officer.';
         break;
       case 'approved':
         nextStep = 'Congratulations! Your identity has been verified.';
@@ -59,15 +60,50 @@ export async function GET(request) {
         break;
     }
 
-    // Get selfie URLs
-    let selfieThumbUrl = null;
-    let selfieUrl = null;
-    if (verification.biometricSelfie?.publicId) {
+    // Get selfie URLs (all 4 angles)
+    let selfieUrls = {
+      front: null,
+      left: null,
+      right: null,
+      up: null
+    };
+    
+    let selfieThumbUrls = {
+      front: null,
+      left: null,
+      right: null,
+      up: null
+    };
+
+    // Get URLs for all 4 face images
+    if (verification.biometricSelfies) {
+      const angles = ['front', 'left', 'right', 'up'];
+      for (const angle of angles) {
+        const selfie = verification.biometricSelfies[angle];
+        if (selfie?.publicId) {
+          try {
+            selfieUrls[angle] = selfie.secureUrl;
+            selfieThumbUrls[angle] = getOptimizedUrl(selfie.publicId, {
+              width: 150,
+              height: 150,
+              crop: 'thumb',
+              gravity: 'face'
+            });
+          } catch {}
+        }
+      }
+    }
+
+    // Fallback to single biometricSelfie for backward compatibility
+    if (!selfieUrls.front && verification.biometricSelfie?.publicId) {
       try {
-        selfieThumbUrl = getOptimizedUrl(verification.biometricSelfie.publicId, { 
-          width: 150, height: 150, crop: 'thumb', gravity: 'face' 
+        selfieUrls.front = verification.biometricSelfie.secureUrl;
+        selfieThumbUrls.front = getOptimizedUrl(verification.biometricSelfie.publicId, {
+          width: 150,
+          height: 150,
+          crop: 'thumb',
+          gravity: 'face'
         });
-        selfieUrl = verification.biometricSelfie.secureUrl;
       } catch {}
     }
 
@@ -81,12 +117,23 @@ export async function GET(request) {
       rejectionReason: verification.rejectionReason,
       nextStep,
       statusHistory: verification.statusHistory || [],
-      selfieThumbUrl,
-      selfieUrl,
+      
+      // All 4 face image URLs
+      selfieUrls,
+      selfieThumbUrls,
+      
+      // Primary selfie for backward compatibility
+      selfieUrl: selfieUrls.front,
+      selfieThumbUrl: selfieThumbUrls.front,
+      
+      // Document upload status
       documentsUploaded: {
         aadhaar: !!verification.aadhaarCardImage?.secureUrl,
         pan: !!verification.panCardImage?.secureUrl,
-        selfie: !!verification.biometricSelfie?.secureUrl
+        selfieFront: !!selfieUrls.front,
+        selfieLeft: !!selfieUrls.left,
+        selfieRight: !!selfieUrls.right,
+        selfieUp: !!selfieUrls.up
       }
     });
 
