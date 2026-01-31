@@ -7,9 +7,8 @@ export async function POST(request, { params }) {
   try {
     const { id } = params;
 
-    // Auth check
     const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -22,34 +21,36 @@ export async function POST(request, { params }) {
     await connectDB();
     const db = mongoose.connection.db;
     
-    // Check if user is officer
-    const usersCollection = db.collection('users');
-    const user = await usersCollection.findOne({ 
+    // Verify officer role
+    const officer = await db.collection('users').findOne({ 
       _id: new mongoose.Types.ObjectId(decoded.userId) 
     });
 
-    if (!user || user.role !== 'officer') {
+    if (!officer || officer.role !== 'officer') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     // Parse request body
-    const { action, remarks } = await request.json();
+    const body = await request.json();
+    const { action, remarks } = body;
 
     if (!['approve', 'reject'].includes(action)) {
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid action. Use "approve" or "reject".' }, { status: 400 });
     }
 
     if (action === 'reject' && !remarks?.trim()) {
       return NextResponse.json({ error: 'Rejection reason is required' }, { status: 400 });
     }
 
-    // Update application
     const verificationsCollection = db.collection('verifications');
     const now = new Date();
-    
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+
+    // Prepare update
     const updateData = {
-      status: action === 'approve' ? 'approved' : 'rejected',
+      status: newStatus,
       reviewedBy: new mongoose.Types.ObjectId(decoded.userId),
+      reviewedByName: officer.name,
       reviewedAt: now,
       updatedAt: now
     };
@@ -58,16 +59,18 @@ export async function POST(request, { params }) {
       updateData.rejectionReason = remarks;
     }
 
+    // Update verification
     const result = await verificationsCollection.updateOne(
       { _id: new mongoose.Types.ObjectId(id) },
       { 
         $set: updateData,
         $push: {
           statusHistory: {
-            status: updateData.status,
+            status: newStatus,
             changedAt: now,
             changedBy: new mongoose.Types.ObjectId(decoded.userId),
-            remarks: remarks || `Application ${action}d by officer`
+            changedByName: officer.name,
+            remarks: remarks || `Application ${newStatus} by officer`
           }
         }
       }
@@ -77,32 +80,32 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 });
     }
 
-    // Update user's verification status if approved
-    if (action === 'approve') {
-      const verification = await verificationsCollection.findOne({
-        _id: new mongoose.Types.ObjectId(id)
-      });
-      
-      if (verification?.userId) {
-        await usersCollection.updateOne(
-          { _id: verification.userId },
-          { 
-            $set: { 
-              isVerified: true,
-              verificationStatus: 'approved'
-            }
+    // Update user's verification status
+    const verification = await verificationsCollection.findOne({ 
+      _id: new mongoose.Types.ObjectId(id) 
+    });
+    
+    if (verification?.userId) {
+      await db.collection('users').updateOne(
+        { _id: verification.userId },
+        { 
+          $set: { 
+            isVerified: action === 'approve',
+            verificationStatus: newStatus,
+            updatedAt: now
           }
-        );
-      }
+        }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: `Application ${action}d successfully`
+      message: `Application ${newStatus} successfully`,
+      status: newStatus
     });
 
   } catch (error) {
     console.error('Action error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

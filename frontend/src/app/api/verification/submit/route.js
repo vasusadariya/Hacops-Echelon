@@ -137,7 +137,6 @@ export async function POST(request) {
     // ============ EXTRACT FORM FIELDS ============
     const fullName = formData.get('fullName')?.trim() || '';
     const gender = formData.get('gender') || '';
-    const documentIdNumber = (formData.get('documentIdNumber') || '').toUpperCase();
     const addressLine1 = formData.get('addressLine1') || '';
     const addressLine2 = formData.get('addressLine2') || '';
     const city = formData.get('city') || '';
@@ -214,9 +213,6 @@ export async function POST(request) {
     }
     if (!['male', 'female', 'other'].includes(gender)) {
       errors.push('Please select a valid gender');
-    }
-    if (!documentIdNumber || documentIdNumber.length < 8) {
-      errors.push('Document ID must be at least 8 characters');
     }
 
     // Address validation
@@ -394,7 +390,6 @@ export async function POST(request) {
       userId: new mongoose.Types.ObjectId(userId),
       fullName,
       gender,
-      documentIdNumber,
       aadhaarCardImage: aadhaarImage,
       panCardImage: panImage,
       
