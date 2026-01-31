@@ -1,29 +1,12 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-
-const MONGODB_URI = process.env.MONGODB_URI;
-
-async function connectToDatabase() {
-  if (mongoose.connection.readyState === 1) {
-    return mongoose.connection.db;
-  }
-  await mongoose.connect(MONGODB_URI);
-  return mongoose.connection.db;
-}
-
-function verifyToken(token) {
-  try {
-    const jwt = require('jsonwebtoken');
-    return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-  } catch {
-    return null;
-  }
-}
+import connectDB from '@/lib/mongodb';
+import { verifyToken } from '@/lib/jwt';
 
 export async function GET(request) {
   try {
     const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -33,7 +16,8 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const db = await connectToDatabase();
+    await connectDB();
+    const db = mongoose.connection.db;
     
     const user = await db.collection('users').findOne({ 
       _id: new mongoose.Types.ObjectId(decoded.userId) 
@@ -43,28 +27,16 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const coll = db.collection('verifications');
+    const verificationsCollection = db.collection('verifications');
+    const behavioralCollection = db.collection('behavioralanalyses');
 
-    // Get counts for each status
-    const [
-      total,
-      submitted,
-      underAIVerification,
-      pending,  // under_officer_review
-      approved,
-      rejected,
-      highRisk
-    ] = await Promise.all([
-      coll.countDocuments({}),
-      coll.countDocuments({ status: 'submitted' }),
-      coll.countDocuments({ status: 'under_automated_verification' }),
-      coll.countDocuments({ status: 'under_officer_review' }),
-      coll.countDocuments({ status: 'approved' }),
-      coll.countDocuments({ status: 'rejected' }),
-      coll.countDocuments({ 
-        status: 'under_officer_review',
-        'behaviorAnalysis.riskScore': { $gte: 70 }
-      })
+    // Get verification counts
+    const [total, pending, approved, rejected, underAI] = await Promise.all([
+      verificationsCollection.countDocuments({}),
+      verificationsCollection.countDocuments({ status: 'under_officer_review' }),
+      verificationsCollection.countDocuments({ status: 'approved' }),
+      verificationsCollection.countDocuments({ status: 'rejected' }),
+      verificationsCollection.countDocuments({ status: 'under_automated_verification' })
     ]);
 
     // Get high risk using NEW behaviorSummary field
@@ -95,20 +67,31 @@ export async function GET(request) {
     // Today's processed
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const todayProcessed = await coll.countDocuments({
+    const todayProcessed = await verificationsCollection.countDocuments({
       reviewedAt: { $gte: todayStart }
     });
 
     return NextResponse.json({
       // Verification stats
       total,
-      submitted,
-      underAIVerification,
-      pending,  // This is under_officer_review count
+      pending,
       approved,
       rejected,
       highRisk,
-      todayProcessed
+      underAIVerification: underAI,
+      todayProcessed,
+      
+      // Behavioral analysis stats
+      behavioralStats: behavioralStats[0] || {
+        totalAnalyses: 0,
+        avgTrustScore: 0,
+        avgBotLikelihood: 0,
+        botsDetected: 0,
+        lowRisk: 0,
+        mediumRisk: 0,
+        highRisk: 0,
+        criticalRisk: 0
+      }
     });
 
   } catch (error) {

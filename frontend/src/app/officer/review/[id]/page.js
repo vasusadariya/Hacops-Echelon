@@ -11,7 +11,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import {
   ArrowLeft, CheckCircle, XCircle, AlertTriangle, User, FileText,
-  MapPin, Phone, Loader2, Shield, Clock, Image
+  MapPin, Phone, Loader2, Shield, Clock, Image,
+  // NEW ICONS for behavioral analysis
+  Bot, Keyboard, MousePointer2, Clipboard, Activity, ChevronDown, ChevronUp, Eye, EyeOff
 } from 'lucide-react';
 
 export default function ReviewApplicationPage() {
@@ -26,6 +28,9 @@ export default function ReviewApplicationPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // NEW: State for behavioral analysis details
+  const [showBehavioralDetails, setShowBehavioralDetails] = useState(false);
 
   useEffect(() => {
     if (applicationId) {
@@ -195,13 +200,28 @@ export default function ReviewApplicationPage() {
   }
 
   const app = application;
-  const riskScore = app?.behaviorAnalysis?.riskScore || app?.aiAnalysis?.overallRiskScore || 0;
+  
+  // Get behavioral data - prefer new format, fall back to legacy
+  const behaviorSummary = app?.behaviorSummary || {};
+  const detailedBehavioral = app?.detailedBehavioralAnalysis || null;
+  const legacyBehavior = app?.behaviorAnalysis || {};
+  
+  // Calculate scores with fallback chain
+  const botLikelihood = behaviorSummary.botLikelihood ?? legacyBehavior.riskScore ?? 0;
+  const overallTrustScore = behaviorSummary.overallTrustScore ?? (100 - botLikelihood);
+  const riskLevel = behaviorSummary.riskLevel || (botLikelihood >= 70 ? 'high' : botLikelihood >= 40 ? 'medium' : 'low');
+  const isHuman = behaviorSummary.isHuman ?? !legacyBehavior.suspiciousActivity ?? true;
+  const recommendation = behaviorSummary.recommendation || 'standard_flow';
+  
+  // Legacy risk score for backward compatibility
+  const riskScore = legacyBehavior.riskScore || botLikelihood;
+  
   const isAlreadyReviewed = ['approved', 'rejected'].includes(app?.status);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
           <Link href="/officer/pending">
             <Button variant="outline" size="icon">
@@ -213,13 +233,28 @@ export default function ReviewApplicationPage() {
             <p className="text-sm text-gray-500">ID: {app?._id?.toString().slice(-8).toUpperCase()}</p>
           </div>
         </div>
-        <Badge className={
-          app?.status === 'approved' ? 'bg-green-500' :
-          app?.status === 'rejected' ? 'bg-red-500' :
-          'bg-orange-500'
-        }>
-          {app?.status?.replace(/_/g, ' ').toUpperCase()}
-        </Badge>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Human/Bot Badge */}
+          <Badge className={isHuman ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+            {isHuman ? (
+              <><User className="h-3 w-3 mr-1" /> Human</>
+            ) : (
+              <><Bot className="h-3 w-3 mr-1" /> Bot Suspected</>
+            )}
+          </Badge>
+          {/* Risk Badge */}
+          <Badge className={getRiskColor(riskLevel) + ' text-white'}>
+            {riskLevel.toUpperCase()} RISK
+          </Badge>
+          {/* Status Badge */}
+          <Badge className={
+            app?.status === 'approved' ? 'bg-green-500' :
+            app?.status === 'rejected' ? 'bg-red-500' :
+            'bg-orange-500'
+          }>
+            {app?.status?.replace(/_/g, ' ').toUpperCase()}
+          </Badge>
+        </div>
       </div>
 
       {/* Messages */}
@@ -373,7 +408,170 @@ export default function ReviewApplicationPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Risk Assessment */}
+          
+          {/* ============ NEW: BEHAVIORAL ANALYSIS CARD ============ */}
+          <Card className={`border-2 ${getRiskBgColor(riskLevel)}`}>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-primary" />
+                  Behavioral Analysis
+                </div>
+                <Badge className={getRiskColor(riskLevel) + ' text-white text-xs'}>
+                  {riskLevel.toUpperCase()}
+                </Badge>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                AI-powered bot detection & behavior verification
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Main Scores */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-2 bg-white rounded border text-center">
+                  <div className="text-xs text-gray-500">Trust Score</div>
+                  <div className={`text-xl font-bold ${getScoreColor(overallTrustScore)}`}>
+                    {overallTrustScore}
+                  </div>
+                  <Progress value={overallTrustScore} className="h-1 mt-1" />
+                </div>
+                <div className="p-2 bg-white rounded border text-center">
+                  <div className="text-xs text-gray-500">Bot Likelihood</div>
+                  <div className={`text-xl font-bold ${
+                    botLikelihood < 30 ? 'text-green-600' : 
+                    botLikelihood < 60 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {botLikelihood}%
+                  </div>
+                  <Progress 
+                    value={botLikelihood} 
+                    className={`h-1 mt-1 ${botLikelihood > 50 ? '[&>div]:bg-red-500' : ''}`}
+                  />
+                </div>
+              </div>
+
+              {/* Human/Bot Verdict */}
+              <div className={`p-2 rounded border text-center ${isHuman ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                <div className="flex items-center justify-center gap-2">
+                  {isHuman ? (
+                    <><CheckCircle className="h-4 w-4 text-green-600" /><span className="text-green-700 font-medium text-sm">Human Verified</span></>
+                  ) : (
+                    <><Bot className="h-4 w-4 text-red-600" /><span className="text-red-700 font-medium text-sm">Bot Suspected</span></>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Recommendation: {recommendation.replace(/_/g, ' ')}
+                </p>
+              </div>
+
+              {/* Toggle Details Button */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs"
+                onClick={() => setShowBehavioralDetails(!showBehavioralDetails)}
+              >
+                {showBehavioralDetails ? (
+                  <><EyeOff className="h-3 w-3 mr-1" /> Hide Details</>
+                ) : (
+                  <><Eye className="h-3 w-3 mr-1" /> View Details</>
+                )}
+              </Button>
+
+              {/* Detailed Analysis (Collapsible) */}
+              {showBehavioralDetails && (
+                <div className="space-y-2 pt-2 border-t">
+                  {/* Component Scores */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2 bg-white rounded border">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Keyboard className="h-3 w-3" /> Keystroke
+                      </div>
+                      <div className="font-bold text-sm">
+                        {detailedBehavioral?.keystrokeAnalysis?.trustScore || 
+                         detailedBehavioral?.componentScores?.typing || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {detailedBehavioral?.keystrokeAnalysis?.avgIntervalMs 
+                          ? `${Math.round(detailedBehavioral.keystrokeAnalysis.avgIntervalMs)}ms`
+                          : legacyBehavior.typingSpeed 
+                            ? `${legacyBehavior.typingSpeed} cpm`
+                            : '-'
+                        }
+                      </div>
+                    </div>
+                    <div className="p-2 bg-white rounded border">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <MousePointer2 className="h-3 w-3" /> Mouse
+                      </div>
+                      <div className="font-bold text-sm">
+                        {detailedBehavioral?.mouseAnalysis?.trustScore || 
+                         detailedBehavioral?.componentScores?.mouse || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {detailedBehavioral?.mouseAnalysis?.totalMovements || legacyBehavior.mouseMovements || 0} moves
+                      </div>
+                    </div>
+                    <div className="p-2 bg-white rounded border">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Clipboard className="h-3 w-3" /> Paste
+                      </div>
+                      <div className="font-bold text-sm">
+                        {detailedBehavioral?.pasteAnalysis?.trustScore || 
+                         detailedBehavioral?.componentScores?.paste || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {detailedBehavioral?.pasteAnalysis?.pastePercentage 
+                          ? `${Math.round(detailedBehavioral.pasteAnalysis.pastePercentage)}% pasted`
+                          : '-'
+                        }
+                      </div>
+                    </div>
+                    <div className="p-2 bg-white rounded border">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Clock className="h-3 w-3" /> Speed
+                      </div>
+                      <div className="font-bold text-sm">
+                        {detailedBehavioral?.speedAnalysis?.trustScore || 
+                         detailedBehavioral?.componentScores?.speed || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {detailedBehavioral?.speedAnalysis?.totalTimeSeconds || legacyBehavior.totalTimeSpent || 0}s total
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Flags */}
+                  {detailedBehavioral?.flagsDetected?.length > 0 && (
+                    <div className="p-2 bg-red-50 rounded border border-red-200">
+                      <div className="text-xs text-red-700 font-medium mb-1">
+                        ⚠️ Flags ({detailedBehavioral.flagsDetected.length})
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {detailedBehavioral.flagsDetected.map((flag, idx) => (
+                          <Badge key={idx} variant="destructive" className="text-xs py-0 px-1">
+                            {flag.replace(/([A-Z])/g, ' $1').trim()}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Raw Metrics */}
+                  {detailedBehavioral?.rawMetrics && (
+                    <div className="text-xs text-gray-400 pt-1 border-t grid grid-cols-2 gap-1">
+                      <span>Keys: {detailedBehavioral.rawMetrics.totalKeystrokes || 0}</span>
+                      <span>Mouse: {detailedBehavioral.rawMetrics.totalMouseMovements || 0}</span>
+                      <span>Fields: {detailedBehavioral.rawMetrics.totalFields || 0}</span>
+                      <span>Time: {Math.round((detailedBehavioral.rawMetrics.sessionDurationMs || 0) / 1000)}s</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ============ LEGACY RISK ASSESSMENT (kept for compatibility) ============ */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
