@@ -30,6 +30,8 @@ import {
   Loader2
 } from 'lucide-react';
 import { Footer } from '@/components/footer';
+import { BehaviorDebugPanel } from '@/components/behavior-debug-panel';
+
 
 export default function VerificationFormPage() {
   const router = useRouter();
@@ -573,6 +575,8 @@ export default function VerificationFormPage() {
       </main>
 
       <Footer />
+
+      <BehaviorDebugPanel showByDefault={true} />
     </div>
   );
 }

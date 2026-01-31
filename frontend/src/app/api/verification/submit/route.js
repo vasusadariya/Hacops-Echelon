@@ -279,3 +279,44 @@ export async function POST(request) {
     }, { status: 500 });
   }
 }
+
+// Add this function to analyze behavior via Python backend
+async function analyzeBehaviorAdvanced(behaviorData) {
+  try {
+    const response = await fetch('http://localhost:8000/api/behavioral/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(behaviorData)
+    });
+    
+    if (response.ok) {
+      return await response.json();
+    }
+    
+    // Fallback to basic analysis if backend unavailable
+    return fallbackBehaviorAnalysis(behaviorData);
+  } catch (error) {
+    console.log('Behavioral API unavailable, using fallback:', error.message);
+    return fallbackBehaviorAnalysis(behaviorData);
+  }
+}
+
+function fallbackBehaviorAnalysis(behaviorData) {
+  // Basic fallback analysis
+  const botLikelihood = behaviorData.botLikelihood || 30;
+  const flags = behaviorData.flagsDetected || [];
+  
+  return {
+    success: true,
+    analysis: {
+      overall_trust_score: 100 - botLikelihood,
+      bot_likelihood: botLikelihood,
+      risk_level: botLikelihood > 50 ? 'high' : botLikelihood > 25 ? 'medium' : 'low',
+      recommendation: botLikelihood > 50 ? 'manual_review' : 'auto_approve',
+      flags_detected: flags
+    },
+    is_human: botLikelihood < 50,
+    confidence: (100 - botLikelihood) / 100,
+    action_required: botLikelihood > 50 ? 'manual_review' : 'auto_approve'
+  };
+}

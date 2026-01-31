@@ -27,9 +27,11 @@ export default async function RootLayout({ children }) {
       <body
         className={inter.className}
       >
-        <QueryProvider>
+        <NextIntlClientProvider messages={messages}><QueryProvider>
           <AuthProvider> <ReCaptchaProvider>{children}</ReCaptchaProvider></AuthProvider>
-        </QueryProvider>
+        </QueryProvider></NextIntlClientProvider>
+        
+        
       </body>
     </html>
   );
