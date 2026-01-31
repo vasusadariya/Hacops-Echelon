@@ -1,0 +1,21 @@
+# Python
+# Ignore compiled Python bytecode
+*.pyc
+__pycache__/
+
+# Ignore virtual environment folders
+venv/
+.venv/
+env/
+.env/
+
+# Ignore test results
+.pytest_cache/
+
+# Ignore editor-specific files and directories
+.vscode/
+.idea/
+*.sublime-*
+
+# Ignore environment variables file
+.env
