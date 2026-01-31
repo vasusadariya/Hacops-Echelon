@@ -2,8 +2,11 @@
 
 import Link from 'next/link';
 import { Phone, Mail } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 export function Footer() {
+  const t = useTranslations('footer');
+
   return (
     <footer className="bg-card text-muted-foreground border-t border-border">
       <div className="max-w-7xl mx-auto px-4 py-12">
@@ -13,59 +16,59 @@ export function Footer() {
           {/* About */}
           <div>
             <h3 className="font-semibold text-foreground mb-4">
-              About KYC Verify
+              {t('about.title')}
             </h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-foreground">About Us</Link></li>
-              <li><Link href="#" className="hover:text-foreground">Mission & Vision</Link></li>
-              <li><Link href="#" className="hover:text-foreground">Our Team</Link></li>
-              <li><Link href="#" className="hover:text-foreground">Careers</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('about.aboutUs')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('about.mission')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('about.team')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('about.careers')}</Link></li>
             </ul>
           </div>
 
           {/* Services */}
           <div>
             <h3 className="font-semibold text-foreground mb-4">
-              Services
+              {t('services.title')}
             </h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-foreground">Document Verification</Link></li>
-              <li><Link href="#" className="hover:text-foreground">Biometric Verification</Link></li>
-              <li><Link href="#" className="hover:text-foreground">Identity Validation</Link></li>
-              <li><Link href="#" className="hover:text-foreground">KYC Compliance</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('services.documentVerification')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('services.biometricVerification')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('services.identityValidation')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('services.kycCompliance')}</Link></li>
             </ul>
           </div>
 
           {/* Useful Links */}
           <div>
             <h3 className="font-semibold text-foreground mb-4">
-              Useful Links
+              {t('links.title')}
             </h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-foreground">FAQ</Link></li>
-              <li><Link href="#" className="hover:text-foreground">Privacy Policy</Link></li>
-              <li><Link href="#" className="hover:text-foreground">Terms & Conditions</Link></li>
-              <li><Link href="#" className="hover:text-foreground">Contact Support</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('links.faq')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('links.privacy')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('links.terms')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground">{t('links.support')}</Link></li>
             </ul>
           </div>
 
           {/* Contact */}
           <div>
             <h3 className="font-semibold text-foreground mb-4">
-              Contact Us
+              {t('contact.title')}
             </h3>
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-primary" />
-                <span>1800-258-1800</span>
+                <span>{t('contact.phone')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-primary" />
-                <span>support@kycverify.gov.in</span>
+                <span>{t('contact.email')}</span>
               </div>
               <p className="mt-4 text-sm">
-                Ministry of Identity Verification<br />
-                Government of India
+                {t('contact.ministry')}<br />
+                {t('contact.government')}
               </p>
             </div>
           </div>
@@ -78,7 +81,7 @@ export function Footer() {
 
             <div>
               <h4 className="font-semibold text-foreground mb-2">
-                Languages
+                {t('languages')}
               </h4>
               <div className="space-y-1">
                 <Link href="#" className="block hover:text-foreground">हिन्दी</Link>
@@ -89,17 +92,17 @@ export function Footer() {
 
             <div className="md:text-center">
               <p>
-                © 2026 KYC Verify. All rights reserved.
+                {t('copyright')}
               </p>
               <p className="text-xs mt-1">
-                Government of India | Ministry of Identity Verification
+                {t('ministryFull')}
               </p>
             </div>
 
             <div className="md:text-right">
-              <p>Website Accessibility Policy</p>
+              <p>{t('accessibility')}</p>
               <p className="text-xs mt-1">
-                Last Updated: January 31, 2026
+                {t('lastUpdated')}
               </p>
             </div>
 

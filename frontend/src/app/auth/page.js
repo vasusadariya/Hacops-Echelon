@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/hooks/use-auth'; // Updated import
+import { useLogin, useRegister, useCurrentUser } from '@/hooks/use-auth';
+import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,7 @@ import {
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 export default function AuthPage() {
+  const t = useTranslations('auth');
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -90,12 +92,12 @@ export default function AuthPage() {
 
     // Validation
     if (signupPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwordMismatch'));
       return;
     }
 
     if (signupPassword.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError(t('passwordMinLength'));
       return;
     }
 
@@ -122,7 +124,8 @@ export default function AuthPage() {
     }
   };
 
-  // Show loading while checking auth state
+  const isLoading = loginMutation.isPending || registerMutation.isPending;
+
   if (userLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -150,11 +153,11 @@ export default function AuthPage() {
           <div className="mx-auto text-3xl">🏛️</div>
 
           <CardTitle className="text-xl font-semibold">
-            National Identity Verification Portal
+            {t('portalTitle')}
           </CardTitle>
 
           <CardDescription>
-            Secure access for registered users
+            {t('secureAccess')}
           </CardDescription>
         </CardHeader>
 
@@ -162,10 +165,10 @@ export default function AuthPage() {
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid grid-cols-2 mb-4">
               <TabsTrigger value="login">
-                Login
+                {t('loginTab')}
               </TabsTrigger>
               <TabsTrigger value="signup">
-                Register
+                {t('registerTab')}
               </TabsTrigger>
             </TabsList>
 
@@ -183,22 +186,21 @@ export default function AuthPage() {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-email">
-                    Email Address
+                    {t('emailLabel')}
                   </Label>
                   <Input
                     id="login-email"
                     type="email"
-                    placeholder="name@example.com"
+                    placeholder={t('emailPlaceholder')}
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    disabled={isLoading}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="login-password">
-                    Password
+                    {t('passwordLabel')}
                   </Label>
                   <Input
                     id="login-password"
@@ -206,7 +208,6 @@ export default function AuthPage() {
                     placeholder="Enter your password"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    disabled={isLoading}
                     required
                   />
                 </div>
@@ -216,22 +217,18 @@ export default function AuthPage() {
                     href="/forgot-password"
                     className="text-sm text-primary hover:underline"
                   >
-                    Forgot password?
+                    {t('forgotPassword')}
                   </Link>
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90"
-                  disabled={isLoading}
-                >
+                <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in…
+                      {t('signingIn')}
                     </>
                   ) : (
-                    'Login'
+                    t('loginButton')
                   )}
                 </Button>
               </form>
@@ -242,7 +239,7 @@ export default function AuthPage() {
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">
-                    Full Name
+                    {t('fullNameLabel')}
                   </Label>
                   <Input
                     id="signup-name"
@@ -250,14 +247,13 @@ export default function AuthPage() {
                     placeholder="Enter your full name"
                     value={signupName}
                     onChange={(e) => setSignupName(e.target.value)}
-                    disabled={isLoading}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">
-                    Email Address
+                    {t('emailLabel')}
                   </Label>
                   <Input
                     id="signup-email"
@@ -265,14 +261,13 @@ export default function AuthPage() {
                     placeholder="name@example.com"
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
-                    disabled={isLoading}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">
-                    Password
+                    {t('passwordLabel')}
                   </Label>
                   <Input
                     id="signup-password"
@@ -280,14 +275,13 @@ export default function AuthPage() {
                     placeholder="At least 6 characters"
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
-                    disabled={isLoading}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="confirm-password">
-                    Confirm Password
+                    {t('confirmPasswordLabel')}
                   </Label>
                   <Input
                     id="confirm-password"
@@ -295,23 +289,18 @@ export default function AuthPage() {
                     placeholder="Confirm your password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    disabled={isLoading}
                     required
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90"
-                  disabled={isLoading}
-                >
+                <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account…
+                      {t('creatingAccount')}
                     </>
                   ) : (
-                    'Register'
+                    t('registerButton')
                   )}
                 </Button>
               </form>
