@@ -1,7 +1,24 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import connectDB from '@/lib/mongodb';
-import { verifyToken } from '@/lib/jwt';
+
+const MONGODB_URI = process.env.MONGODB_URI;
+
+async function connectToDatabase() {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection.db;
+  }
+  await mongoose.connect(MONGODB_URI);
+  return mongoose.connection.db;
+}
+
+function verifyToken(token) {
+  try {
+    const jwt = require('jsonwebtoken');
+    return jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request) {
   try {
@@ -16,11 +33,10 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    await connectDB();
-    const db = mongoose.connection.db;
-
-    const user = await db.collection('users').findOne({
-      _id: new mongoose.Types.ObjectId(decoded.userId)
+    const db = await connectToDatabase();
+    
+    const user = await db.collection('users').findOne({ 
+      _id: new mongoose.Types.ObjectId(decoded.userId) 
     });
 
     if (!user || (user.role !== 'officer' && user.role !== 'admin')) {
@@ -29,13 +45,12 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit')) || 20;
-    const page = parseInt(searchParams.get('page')) || 1;
-    const sort = searchParams.get('sort') || 'newest';
-    const riskFilter = searchParams.get('risk'); // 'high', 'low', etc.
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const risk = searchParams.get('risk');
 
-    // Build query
     const query = {};
+    
     if (status) {
       query.status = status;
     }
@@ -51,17 +66,22 @@ export async function GET(request) {
       }
     }
 
-    // Sort options
-    const sortOptions = {
-      newest: { submittedAt: -1 },
-      oldest: { submittedAt: 1 },
-      highRisk: { 'behaviorSummary.botLikelihood': -1 },
-      lowRisk: { 'behaviorSummary.botLikelihood': 1 }
-    };
+    if (risk === 'high') {
+      query['behaviorAnalysis.riskScore'] = { $gte: 70 };
+    } else if (risk === 'medium') {
+      query['behaviorAnalysis.riskScore'] = { $gte: 40, $lt: 70 };
+    } else if (risk === 'low') {
+      query['behaviorAnalysis.riskScore'] = { $lt: 40 };
+    }
 
-    const applications = await db.collection('verifications')
+    const verificationsCollection = db.collection('verifications');
+    
+    const total = await verificationsCollection.countDocuments(query);
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    const applications = await verificationsCollection
       .find(query)
-      .sort(sortOptions[sort] || sortOptions.newest)
+      .sort({ 'behaviorAnalysis.riskScore': -1, updatedAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .toArray();
@@ -106,17 +126,15 @@ export async function GET(request) {
     }));
 
     return NextResponse.json({
-      applications: formattedApplications,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit)
-      }
+      applications,
+      total,
+      totalPages,
+      page,
+      limit
     });
 
   } catch (error) {
-    console.error('Applications error:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    console.error('Applications API error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

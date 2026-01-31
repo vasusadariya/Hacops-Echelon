@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import Navbar from '@/components/navbar';
+import { Footer } from '@/components/footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,13 +22,12 @@ import {
   Home,
   ArrowRight,
   FileText,
-  Edit
+  ChevronRight
 } from 'lucide-react';
-import { Footer } from '@/components/footer';
 
 const statusIcons = {
   'not_started': FileText,
-  'draft': Edit,
+  'draft': FileText,
   'submitted': Clock,
   'under_automated_verification': Cpu,
   'under_officer_review': UserCheck,
@@ -47,7 +47,7 @@ const statusColors = {
 
 export default function VerificationStatusPage() {
   const router = useRouter();
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -64,9 +64,15 @@ export default function VerificationStatusPage() {
     }
   }, [isAuthenticated]);
 
+  // Auto-refresh for pending statuses
+  useEffect(() => {
+    if (status?.isPending) {
+      const interval = setInterval(fetchStatus, 5000); // Refresh every 5 seconds
+      return () => clearInterval(interval);
+    }
+  }, [status?.isPending, status?.status]);
+
   const fetchStatus = async () => {
-    setLoading(true);
-    setError('');
     try {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/verification/status', {
@@ -74,7 +80,9 @@ export default function VerificationStatusPage() {
       });
 
       if (res.ok) {
-        setStatus(await res.json());
+        const data = await res.json();
+        setStatus(data);
+        setError('');
       } else {
         throw new Error('Failed to fetch status');
       }
@@ -85,21 +93,13 @@ export default function VerificationStatusPage() {
     }
   };
 
-  // Auto refresh for pending statuses
-  useEffect(() => {
-    if (status?.isPending) {
-      const interval = setInterval(fetchStatus, 30000); // Refresh every 30 seconds
-      return () => clearInterval(interval);
-    }
-  }, [status?.isPending]);
-
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
-            <Loader2 className="h-10 w-10 animate-spin text-orange-500 mx-auto mb-4" />
+            <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
             <p className="text-gray-500">Loading verification status...</p>
           </div>
         </div>
@@ -110,6 +110,27 @@ export default function VerificationStatusPage() {
 
   const StatusIcon = statusIcons[status?.status] || Clock;
   const statusColor = statusColors[status?.status] || statusColors['not_started'];
+
+  // Progress steps
+  const steps = [
+    { id: 'submitted', label: 'Submitted', icon: Clock },
+    { id: 'under_automated_verification', label: 'AI Verification', icon: Cpu },
+    { id: 'under_officer_review', label: 'Officer Review', icon: UserCheck },
+    { id: 'completed', label: 'Completed', icon: CheckCircle },
+  ];
+
+  const getCurrentStep = () => {
+    switch (status?.status) {
+      case 'submitted': return 1;
+      case 'under_automated_verification': return 2;
+      case 'under_officer_review': return 3;
+      case 'approved':
+      case 'rejected': return 4;
+      default: return 0;
+    }
+  };
+
+  const currentStep = getCurrentStep();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -126,6 +147,47 @@ export default function VerificationStatusPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        )}
+
+        {/* Progress Bar */}
+        {status?.hasVerification && currentStep > 0 && (
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-2">
+                {steps.map((step, index) => {
+                  const StepIcon = step.icon;
+                  const isCompleted = index < currentStep;
+                  const isCurrent = index === currentStep - 1;
+                  const isRejected = status?.status === 'rejected' && index === 3;
+                  
+                  return (
+                    <div key={step.id} className="flex items-center flex-1">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          isRejected ? 'bg-red-500 text-white' :
+                          isCompleted ? 'bg-green-500 text-white' :
+                          isCurrent ? 'bg-primary text-white animate-pulse' :
+                          'bg-gray-200 text-gray-500'
+                        }`}>
+                          <StepIcon className="h-5 w-5" />
+                        </div>
+                        <span className={`text-xs mt-1 text-center ${
+                          isCompleted || isCurrent ? 'text-gray-900 font-medium' : 'text-gray-400'
+                        }`}>
+                          {step.label}
+                        </span>
+                      </div>
+                      {index < steps.length - 1 && (
+                        <div className={`flex-1 h-1 mx-2 ${
+                          index < currentStep - 1 ? 'bg-green-500' : 'bg-gray-200'
+                        }`} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Main Status Card */}
@@ -147,13 +209,13 @@ export default function VerificationStatusPage() {
               {status?.statusInfo?.title || 'Not Started'}
             </h2>
             <p className="text-gray-600 max-w-md mx-auto">
-              {status?.statusInfo?.message || 'Start your verification to access government services.'}
+              {status?.statusInfo?.message || 'Start your verification to access services.'}
             </p>
 
             {status?.isPending && (
-              <div className="mt-4 flex items-center justify-center gap-2 text-orange-600">
+              <div className="mt-4 flex items-center justify-center gap-2 text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Auto-refreshing every 30 seconds</span>
+                <span className="text-sm">Auto-refreshing every 5 seconds</span>
               </div>
             )}
           </CardContent>
@@ -172,9 +234,10 @@ export default function VerificationStatusPage() {
         {status?.isVerified && (
           <Alert className="mb-6 bg-green-50 border-green-200">
             <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertTitle className="text-green-700">Identity Verified</AlertTitle>
+            <AlertTitle className="text-green-700">Identity Verified!</AlertTitle>
             <AlertDescription className="text-green-600">
-              Your identity has been verified. You can now access all government services.
+              Your identity has been verified. You now have full access to all services.
+              {status.reviewedByName && ` Verified by: ${status.reviewedByName}`}
             </AlertDescription>
           </Alert>
         )}
@@ -185,31 +248,39 @@ export default function VerificationStatusPage() {
             <CardHeader>
               <CardTitle className="text-lg">Application Details</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between py-2 border-b">
                 <span className="text-gray-500">Application ID</span>
-                <span className="font-mono text-sm">{status.verificationId?.slice(-8).toUpperCase()}</span>
+                <span className="font-mono font-medium">{status.verificationId?.slice(-8).toUpperCase()}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between py-2 border-b">
                 <span className="text-gray-500">Name</span>
                 <span className="font-medium">{status.fullName}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Document ID</span>
-                <span className="font-mono text-sm">{status.documentIdNumber}</span>
+              <div className="flex justify-between py-2 border-b">
+                <span className="text-gray-500">Current Status</span>
+                <Badge className={statusColor}>{status.statusInfo?.title}</Badge>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between py-2 border-b">
                 <span className="text-gray-500">Submitted</span>
-                <span>{status.submittedAt ? new Date(status.submittedAt).toLocaleDateString('en-IN', {
-                  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                }) : '-'}</span>
+                <span>{status.submittedAt ? new Date(status.submittedAt).toLocaleString('en-IN') : '-'}</span>
               </div>
               {status.reviewedAt && (
-                <div className="flex justify-between">
+                <div className="flex justify-between py-2 border-b">
                   <span className="text-gray-500">Reviewed</span>
-                  <span>{new Date(status.reviewedAt).toLocaleDateString('en-IN', {
-                    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                  })}</span>
+                  <span>{new Date(status.reviewedAt).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {status.aiAnalysis && (
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-500">AI Risk Assessment</span>
+                  <Badge className={
+                    status.aiAnalysis.riskScore >= 70 ? 'bg-red-100 text-red-700' :
+                    status.aiAnalysis.riskScore >= 40 ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-green-100 text-green-700'
+                  }>
+                    {status.aiAnalysis.recommendation} ({status.aiAnalysis.riskScore}/100)
+                  </Badge>
                 </div>
               )}
             </CardContent>
@@ -220,27 +291,31 @@ export default function VerificationStatusPage() {
         {status?.statusHistory?.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="text-lg">Status History</CardTitle>
+              <CardTitle className="text-lg">Status Timeline</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {status.statusHistory.slice().reverse().map((history, idx) => (
+                {[...status.statusHistory].reverse().map((history, idx) => (
                   <div key={idx} className="flex gap-4">
                     <div className="flex flex-col items-center">
-                      <div className={`w-3 h-3 rounded-full ${idx === 0 ? 'bg-orange-500' : 'bg-gray-300'}`} />
-                      {idx < status.statusHistory.length - 1 && <div className="w-0.5 h-full bg-gray-200 mt-1" />}
+                      <div className={`w-3 h-3 rounded-full ${
+                        idx === 0 ? 'bg-primary' : 'bg-gray-300'
+                      }`} />
+                      {idx < status.statusHistory.length - 1 && (
+                        <div className="w-0.5 h-full bg-gray-200 mt-1" />
+                      )}
                     </div>
                     <div className="flex-1 pb-4">
                       <p className="font-medium text-gray-800">
                         {history.status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                       </p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(history.changedAt).toLocaleDateString('en-IN', {
-                          day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                        })}
+                      <p className="text-xs text-gray-500">
+                        {new Date(history.changedAt).toLocaleString('en-IN')}
                       </p>
                       {history.remarks && (
-                        <p className="text-sm text-gray-600 mt-1 italic">"{history.remarks}"</p>
+                        <p className="text-sm text-gray-600 mt-1 bg-gray-50 p-2 rounded">
+                          {history.remarks}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -254,18 +329,16 @@ export default function VerificationStatusPage() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           {!status?.hasVerification && (
             <Link href="/verification/form">
-              <Button className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600">
-                Start Verification
-                <ArrowRight className="h-4 w-4 ml-2" />
+              <Button className="w-full sm:w-auto">
+                Start Verification <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             </Link>
           )}
 
           {status?.canResubmit && (
             <Link href="/verification/form">
-              <Button className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600">
-                Resubmit Application
-                <ArrowRight className="h-4 w-4 ml-2" />
+              <Button className="w-full sm:w-auto">
+                Resubmit Application <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             </Link>
           )}

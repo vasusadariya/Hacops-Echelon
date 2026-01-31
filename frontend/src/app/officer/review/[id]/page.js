@@ -7,55 +7,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import {
-  ArrowLeft,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  User,
-  FileText,
-  MapPin,
-  Phone,
-  Camera,   
-  Loader2,
-  ZoomIn,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  ChevronDown,
-  Shield,
-  Bot,
-  Keyboard,
-  MousePointer2,
-  Clipboard,
-  Clock,
-  Activity,
-  Eye,
-  EyeOff
+  ArrowLeft, CheckCircle, XCircle, AlertTriangle, User, FileText,
+  MapPin, Phone, Loader2, Shield, Clock, Image
 } from 'lucide-react';
 
-export default function ApplicationReviewPage() {
+export default function ReviewApplicationPage() {
   const router = useRouter();
   const params = useParams();
   const applicationId = params.id;
-
+  
   const [application, setApplication] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [remarks, setRemarks] = useState('');
+  const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  const [previewImage, setPreviewImage] = useState(null);
-  const [showConfirm, setShowConfirm] = useState(null);
-  
-  // NEW: Behavioral Analysis States
-  const [behavioralAnalysis, setBehavioralAnalysis] = useState(null);
-  const [loadingBehavioral, setLoadingBehavioral] = useState(false);
-  const [showDetailedBehavioral, setShowDetailedBehavioral] = useState(false);
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     if (applicationId) {
@@ -66,87 +36,105 @@ export default function ApplicationReviewPage() {
   const fetchApplication = async () => {
     setLoading(true);
     setError('');
+    
     try {
       const token = localStorage.getItem('token');
+      console.log('Fetching application:', applicationId);
+      
       const res = await fetch(`/api/officer/applications/${applicationId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
+      console.log('Response status:', res.status);
+
       if (!res.ok) {
-        throw new Error('Application not found');
+        const data = await res.json();
+        throw new Error(data.error || 'Application not found');
       }
 
       const data = await res.json();
+      console.log('Application data:', data);
       setApplication(data);
-      
-      // Fetch detailed behavioral analysis if reference exists
-      if (data.behavioralAnalysisId) {
-        fetchBehavioralAnalysis(data.behavioralAnalysisId);
-      }
+
     } catch (err) {
-      setError(err.message || 'Failed to load application');
+      console.error('Fetch error:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // NEW: Fetch detailed behavioral analysis
-  const fetchBehavioralAnalysis = async (analysisId) => {
-    setLoadingBehavioral(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/behavioral-analysis/${analysisId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setBehavioralAnalysis(data.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch behavioral analysis:', err);
-    } finally {
-      setLoadingBehavioral(false);
-    }
-  };
-
-  const handleAction = async (action) => {
+  const handleApprove = async () => {
     setActionLoading(true);
     setError('');
+    
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/officer/applications/${applicationId}/action`, {
+      const appId = application._id?.toString() || applicationId;
+      
+      const res = await fetch(`/api/officer/applications/${appId}/action`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          action,
-          remarks: action === 'reject' ? rejectionReason : remarks
-        })
+        body: JSON.stringify({ action: 'approve', remarks: '' })
       });
 
+      const data = await res.json();
+      
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Action failed');
+        throw new Error(data.error || 'Failed to approve');
       }
 
-      router.push('/officer/pending');
+      setSuccess('Application approved successfully!');
+      setTimeout(() => router.push('/officer/pending'), 2000);
+
     } catch (err) {
       setError(err.message);
     } finally {
       setActionLoading(false);
-      setShowConfirm(null);
     }
   };
 
-  const faceAngles = [
-    { id: 'front', label: 'Front', icon: User },
-    { id: 'left', label: 'Left', icon: ChevronLeft },
-    { id: 'right', label: 'Right', icon: ChevronRight },
-    { id: 'up', label: 'Up', icon: ChevronUp }
-  ];
+  const handleReject = async () => {
+    if (!rejectionReason.trim()) {
+      setError('Please provide a rejection reason');
+      return;
+    }
+
+    setActionLoading(true);
+    setError('');
+    
+    try {
+      const token = localStorage.getItem('token');
+      const appId = application._id?.toString() || applicationId;
+      
+      const res = await fetch(`/api/officer/applications/${appId}/action`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action: 'reject', remarks: rejectionReason })
+      });
+
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to reject');
+      }
+
+      setSuccess('Application rejected successfully!');
+      setTimeout(() => router.push('/officer/pending'), 2000);
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActionLoading(false);
+      setShowRejectModal(false);
+    }
+  };
 
   // Helper functions for behavioral analysis display
   const getRiskColor = (level) => {
@@ -194,10 +182,10 @@ export default function ApplicationReviewPage() {
             <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Error Loading Application</h2>
             <p className="text-gray-500 mb-4">{error}</p>
+            <p className="text-xs text-gray-400 mb-4">ID: {applicationId}</p>
             <Link href="/officer/pending">
-              <Button>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Pending
+              <Button className="bg-orange-500 hover:bg-orange-600">
+                <ArrowLeft className="h-4 w-4 mr-2" /> Back to Pending
               </Button>
             </Link>
           </CardContent>
@@ -206,106 +194,14 @@ export default function ApplicationReviewPage() {
     );
   }
 
-  // Get risk data from NEW behaviorSummary or fall back to old behaviorAnalysis
-  const behaviorSummary = application?.behaviorSummary || {};
-  const legacyBehavior = application?.behaviorAnalysis || {};
-  
-  // Use new data if available, otherwise fall back to legacy
-  const botLikelihood = behaviorSummary.botLikelihood ?? legacyBehavior.riskScore ?? 0;
-  const overallTrustScore = behaviorSummary.overallTrustScore ?? (100 - botLikelihood);
-  const riskLevel = behaviorSummary.riskLevel || (botLikelihood >= 70 ? 'high' : botLikelihood >= 40 ? 'medium' : 'low');
-  const isHuman = behaviorSummary.isHuman ?? !legacyBehavior.suspiciousActivity ?? true;
-  const recommendation = behaviorSummary.recommendation || 'standard_flow';
-  
-  // Legacy risk score for backward compatibility
-  const riskScore = legacyBehavior.riskScore || botLikelihood;
-  
-  const isAlreadyReviewed = ['approved', 'rejected'].includes(application?.status);
+  const app = application;
+  const riskScore = app?.behaviorAnalysis?.riskScore || app?.aiAnalysis?.overallRiskScore || 0;
+  const isAlreadyReviewed = ['approved', 'rejected'].includes(app?.status);
 
   return (
     <div className="space-y-6">
-      {/* Image Preview Modal */}
-      {previewImage && (
-        <div 
-          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div className="relative max-w-4xl w-full">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute -top-12 right-0 text-white hover:bg-white/20"
-              onClick={() => setPreviewImage(null)}
-            >
-              <X className="h-6 w-6" />
-            </Button>
-            <img src={previewImage.url} alt={previewImage.label} className="w-full rounded-lg" />
-            <p className="text-center text-white mt-4">{previewImage.label}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Modal */}
-      {showConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <Card className="max-w-md w-full">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {showConfirm === 'approve' ? (
-                  <><CheckCircle className="h-5 w-5 text-green-600" /> Confirm Approval</>
-                ) : (
-                  <><XCircle className="h-5 w-5 text-red-600" /> Confirm Rejection</>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {showConfirm === 'reject' && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Rejection Reason (Required)</Label>
-                  <Textarea
-                    placeholder="Enter reason for rejection..."
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-              )}
-              {showConfirm === 'approve' && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Remarks (Optional)</Label>
-                  <Textarea
-                    placeholder="Add any remarks..."
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    rows={2}
-                  />
-                </div>
-              )}
-              <div className="flex gap-3 justify-end pt-2">
-                <Button variant="outline" onClick={() => setShowConfirm(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => handleAction(showConfirm)}
-                  disabled={actionLoading || (showConfirm === 'reject' && !rejectionReason.trim())}
-                  className={showConfirm === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
-                >
-                  {actionLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : showConfirm === 'approve' ? (
-                    'Approve Application'
-                  ) : (
-                    'Reject Application'
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/officer/pending">
             <Button variant="outline" size="icon">
@@ -313,34 +209,26 @@ export default function ApplicationReviewPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">Application Review</h1>
-            <p className="text-sm text-gray-500 font-mono">
-              ID: {application?._id?.slice(-8).toUpperCase()}
-            </p>
+            <h1 className="text-xl font-bold">Application Review</h1>
+            <p className="text-sm text-gray-500">ID: {app?._id?.toString().slice(-8).toUpperCase()}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge className={
-            application?.status === 'approved' ? 'bg-green-100 text-green-700' :
-            application?.status === 'rejected' ? 'bg-red-100 text-red-700' :
-            'bg-yellow-100 text-yellow-700'
-          }>
-            {application?.status?.replace(/_/g, ' ').toUpperCase()}
-          </Badge>
-          {/* NEW: Bot/Human Badge */}
-          <Badge className={isHuman ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
-            {isHuman ? (
-              <><User className="h-3 w-3 mr-1" /> Human</>
-            ) : (
-              <><Bot className="h-3 w-3 mr-1" /> Bot Suspected</>
-            )}
-          </Badge>
-          <Badge className={getRiskColor(riskLevel) + ' text-white'}>
-            {riskLevel.toUpperCase()} RISK
-          </Badge>
-        </div>
+        <Badge className={
+          app?.status === 'approved' ? 'bg-green-500' :
+          app?.status === 'rejected' ? 'bg-red-500' :
+          'bg-orange-500'
+        }>
+          {app?.status?.replace(/_/g, ' ').toUpperCase()}
+        </Badge>
       </div>
 
+      {/* Messages */}
+      {success && (
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-700">{success}</AlertDescription>
+        </Alert>
+      )}
       {error && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -348,584 +236,231 @@ export default function ApplicationReviewPage() {
         </Alert>
       )}
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Application Data */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Personal Information */}
-          <Card className="border shadow-sm">
-            <CardHeader className="bg-gray-50 border-b py-4">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <User className="h-5 w-5 text-blue-600" />
-                Personal Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">Full Name</p>
-                  <p className="font-medium text-gray-900">{application?.fullName}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">Gender</p>
-                  <p className="font-medium capitalize">{application?.gender}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">Document ID</p>
-                  <p className="font-mono text-sm">{application?.documentIdNumber}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase">Mobile</p>
-                  <p className="font-mono text-sm">+91 {application?.mobileNumber}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Address Information */}
-          <Card className="border shadow-sm">
-            <CardHeader className="bg-gray-50 border-b py-4">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <MapPin className="h-5 w-5 text-green-600" />
-                Address Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="space-y-1 text-sm">
-                <p className="text-gray-900">{application?.addressLine1}</p>
-                {application?.addressLine2 && <p className="text-gray-700">{application.addressLine2}</p>}
-                <p className="text-gray-700">
-                  {application?.city}, {application?.taluka}, {application?.district}
-                </p>
-                <p className="text-gray-700">
-                  {application?.state} - <span className="font-mono">{application?.pincode}</span>
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Document Images */}
-          <Card className="border shadow-sm">
-            <CardHeader className="bg-gray-50 border-b py-4">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <FileText className="h-5 w-5 text-purple-600" />
-                Document Images
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium mb-2">Aadhaar Card</p>
-                  {application?.aadhaarCardImage?.secureUrl ? (
-                    <div 
-                      className="relative aspect-4/3 rounded-lg overflow-hidden border-2 cursor-pointer group hover:border-orange-400"
-                      onClick={() => setPreviewImage({ 
-                        url: application.aadhaarCardImage.secureUrl, 
-                        label: 'Aadhaar Card' 
-                      })}
-                    >
-                      <img 
-                        src={application.aadhaarCardImage.secureUrl} 
-                        alt="Aadhaar" 
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                        <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="aspect-4/3 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
-                      Not uploaded
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium mb-2">PAN Card</p>
-                  {application?.panCardImage?.secureUrl ? (
-                    <div 
-                      className="relative aspect-4/3 rounded-lg overflow-hidden border-2 cursor-pointer group hover:border-orange-400"
-                      onClick={() => setPreviewImage({ 
-                        url: application.panCardImage.secureUrl, 
-                        label: 'PAN Card' 
-                      })}
-                    >
-                      <img 
-                        src={application.panCardImage.secureUrl} 
-                        alt="PAN" 
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                        <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="aspect-4/3 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
-                      Not uploaded
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Biometric Selfies */}
-          <Card className="border shadow-sm">
-            <CardHeader className="bg-gray-50 border-b py-4">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Camera className="h-5 w-5 text-orange-600" />
-                Biometric Face Verification (4 Angles)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {faceAngles.map(({ id, label, icon: Icon }) => {
-                  const selfie = application?.biometricSelfies?.[id];
-                  return (
-                    <div key={id}>
-                      <p className="text-sm font-medium mb-2 flex items-center gap-1">
-                        <Icon className="h-4 w-4 text-gray-500" /> {label}
-                      </p>
-                      {selfie?.secureUrl ? (
-                        <div 
-                          className="relative aspect-3/4 rounded-lg overflow-hidden border-2 cursor-pointer group hover:border-orange-400"
-                          onClick={() => setPreviewImage({ url: selfie.secureUrl, label: `${label} View` })}
-                        >
-                          <img 
-                            src={selfie.secureUrl} 
-                            alt={`${label} view`} 
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                            <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="aspect-3/4 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">
-                          Not captured
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {/* Fallback for single selfie */}
-              {!application?.biometricSelfies?.front && application?.biometricSelfie?.secureUrl && (
-                <div className="mt-4">
-                  <p className="text-sm text-gray-500 mb-2">Single Selfie (Legacy)</p>
-                  <div 
-                    className="w-32 h-40 rounded-lg overflow-hidden border cursor-pointer"
-                    onClick={() => setPreviewImage({ 
-                      url: application.biometricSelfie.secureUrl, 
-                      label: 'Selfie' 
-                    })}
-                  >
-                    <img 
-                      src={application.biometricSelfie.secureUrl} 
-                      alt="Selfie" 
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column - Risk Indicators & Actions */}
-        <div className="space-y-6">
-          
-          {/* ============ NEW: ENHANCED BEHAVIORAL ANALYSIS CARD ============ */}
-          <Card className={`border-2 shadow-sm ${getRiskBgColor(riskLevel)}`}>
-            <CardHeader className="py-4">
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-base">
-                  <Activity className="h-5 w-5 text-primary" />
-                  Behavioral Analysis
-                </div>
-                <Badge className={getRiskColor(riskLevel) + ' text-white'}>
-                  {riskLevel.toUpperCase()}
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                AI-powered bot detection and behavior verification
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Main Scores */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-white rounded-lg border">
-                  <div className="text-xs text-gray-500 uppercase">Trust Score</div>
-                  <div className={`text-2xl font-bold ${getScoreColor(overallTrustScore)}`}>
-                    {overallTrustScore}
-                  </div>
-                  <Progress value={overallTrustScore} className="h-1.5 mt-1" />
-                </div>
-                <div className="p-3 bg-white rounded-lg border">
-                  <div className="text-xs text-gray-500 uppercase">Bot Likelihood</div>
-                  <div className={`text-2xl font-bold ${
-                    botLikelihood < 30 ? 'text-green-600' : 
-                    botLikelihood < 60 ? 'text-yellow-600' : 'text-red-600'
-                  }`}>
-                    {botLikelihood}%
-                  </div>
-                  <Progress 
-                    value={botLikelihood} 
-                    className={`h-1.5 mt-1 ${botLikelihood > 50 ? '[&>div]:bg-red-500' : ''}`}
-                  />
-                </div>
-              </div>
-
-              {/* Human/Bot Assessment */}
-              <div className={`p-3 rounded-lg border ${isHuman ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                <div className="flex items-center gap-2">
-                  {isHuman ? (
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  ) : (
-                    <Bot className="h-5 w-5 text-red-600" />
-                  )}
-                  <span className={`font-medium ${isHuman ? 'text-green-700' : 'text-red-700'}`}>
-                    {isHuman ? 'Human Behavior Verified' : 'Bot-like Behavior Detected'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Recommendation: <span className="font-medium">{recommendation.replace(/_/g, ' ')}</span>
-                </p>
-              </div>
-
-              {/* Detailed Analysis Toggle */}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full"
-                onClick={() => setShowDetailedBehavioral(!showDetailedBehavioral)}
-                disabled={loadingBehavioral}
-              >
-                {loadingBehavioral ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading...</>
-                ) : showDetailedBehavioral ? (
-                  <><EyeOff className="h-4 w-4 mr-2" /> Hide Details</>
-                ) : (
-                  <><Eye className="h-4 w-4 mr-2" /> View Detailed Analysis</>
-                )}
-              </Button>
-
-              {/* Expanded Detailed Analysis */}
-              {showDetailedBehavioral && (
-                <div className="space-y-3 pt-3 border-t">
-                  {/* Component Scores */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Keystroke */}
-                    <div className="p-2 bg-white rounded border">
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Keyboard className="h-3 w-3" /> Keystroke
-                      </div>
-                      <div className="font-bold">
-                        {behavioralAnalysis?.keystrokeAnalysis?.trustScore || 
-                         behavioralAnalysis?.componentScores?.typing || 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {behavioralAnalysis?.keystrokeAnalysis?.avgIntervalMs 
-                          ? `${behavioralAnalysis.keystrokeAnalysis.avgIntervalMs}ms avg`
-                          : `${legacyBehavior.typingSpeed || 0} cpm`
-                        }
-                      </div>
-                    </div>
-
-                    {/* Mouse */}
-                    <div className="p-2 bg-white rounded border">
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <MousePointer2 className="h-3 w-3" /> Mouse
-                      </div>
-                      <div className="font-bold">
-                        {behavioralAnalysis?.mouseAnalysis?.trustScore || 
-                         behavioralAnalysis?.componentScores?.mouse || 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {behavioralAnalysis?.mouseAnalysis?.linearityRatio 
-                          ? `${Math.round(behavioralAnalysis.mouseAnalysis.linearityRatio * 100)}% linear`
-                          : `${legacyBehavior.mouseMovements || 0} moves`
-                        }
-                      </div>
-                    </div>
-
-                    {/* Paste */}
-                    <div className="p-2 bg-white rounded border">
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Clipboard className="h-3 w-3" /> Paste
-                      </div>
-                      <div className="font-bold">
-                        {behavioralAnalysis?.pasteAnalysis?.trustScore || 
-                         behavioralAnalysis?.componentScores?.paste || 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {behavioralAnalysis?.pasteAnalysis?.pastePercentage 
-                          ? `${behavioralAnalysis.pasteAnalysis.pastePercentage}% pasted`
-                          : 'No data'
-                        }
-                      </div>
-                    </div>
-
-                    {/* Speed */}
-                    <div className="p-2 bg-white rounded border">
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Clock className="h-3 w-3" /> Speed
-                      </div>
-                      <div className="font-bold">
-                        {behavioralAnalysis?.speedAnalysis?.trustScore || 
-                         behavioralAnalysis?.componentScores?.speed || 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {behavioralAnalysis?.speedAnalysis?.totalTimeSeconds 
-                          ? `${behavioralAnalysis.speedAnalysis.totalTimeSeconds}s total`
-                          : `${legacyBehavior.totalTimeSpent || 0}s`
-                        }
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Flags Detected */}
-                  {behavioralAnalysis?.flagsDetected?.length > 0 && (
-                    <div className="p-2 bg-red-50 rounded border border-red-200">
-                      <div className="flex items-center gap-1 text-xs text-red-700 font-medium mb-1">
-                        <AlertTriangle className="h-3 w-3" /> 
-                        Flags Detected ({behavioralAnalysis.flagsDetected.length})
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {behavioralAnalysis.flagsDetected.map((flag, idx) => (
-                          <Badge key={idx} variant="destructive" className="text-xs py-0">
-                            {flag.replace(/([A-Z])/g, ' $1').trim()}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Raw Metrics */}
-                  {behavioralAnalysis?.rawMetrics && (
-                    <div className="text-xs text-gray-500 pt-2 border-t">
-                      <div className="grid grid-cols-2 gap-1">
-                        <span>Keystrokes: {behavioralAnalysis.rawMetrics.totalKeystrokes || 0}</span>
-                        <span>Mouse: {behavioralAnalysis.rawMetrics.totalMouseMovements || 0}</span>
-                        <span>Fields: {behavioralAnalysis.rawMetrics.totalFields || 0}</span>
-                        <span>Session: {Math.round((behavioralAnalysis.rawMetrics.sessionDurationMs || 0) / 1000)}s</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* ============ LEGACY: ORIGINAL RISK ASSESSMENT (kept for compatibility) ============ */}
-          <Card className="border shadow-sm">
-            <CardHeader className="bg-gray-50 border-b py-4">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Shield className="h-5 w-5 text-red-600" />
-                Legacy Risk Assessment
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader className="bg-red-50 border-b">
+              <CardTitle className="text-red-700 flex items-center gap-2">
+                <XCircle className="h-5 w-5" /> Reject Application
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
-              {/* Risk Score */}
-              <div className={`p-4 rounded-lg ${
-                riskScore >= 70 ? 'bg-red-50' :
-                riskScore >= 40 ? 'bg-yellow-50' :
-                'bg-green-50'
-              }`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">Legacy Risk Score</span>
-                  <span className={`text-2xl font-bold ${
-                    riskScore >= 70 ? 'text-red-600' :
-                    riskScore >= 40 ? 'text-yellow-600' :
-                    'text-green-600'
-                  }`}>
-                    {riskScore}/100
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${
-                      riskScore >= 70 ? 'bg-red-500' :
-                      riskScore >= 40 ? 'bg-yellow-500' :
-                      'bg-green-500'
-                    }`}
-                    style={{ width: `${riskScore}%` }}
-                  />
-                </div>
+              <Textarea
+                placeholder="Rejection reason (required)..."
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={4}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setShowRejectModal(false)}>Cancel</Button>
+                <Button variant="destructive" onClick={handleReject} disabled={!rejectionReason.trim() || actionLoading}>
+                  {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reject'}
+                </Button>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-              {/* Risk Indicators */}
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-gray-700">Risk Indicators</p>
-                
-                <div className={`p-3 rounded-lg ${
-                  riskScore >= 50 ? 'bg-yellow-50' : 'bg-green-50'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{riskScore >= 50 ? '⚠️' : '✓'}</span>
-                    <span className={`font-medium ${
-                      riskScore >= 50 ? 'text-yellow-700' : 'text-green-700'
-                    }`}>
-                      Behavioral Analysis
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {riskScore >= 50 ? 'Unusual behavior patterns detected' : 'Normal behavior patterns'}
-                  </p>
-                </div>
-
-                <div className={`p-3 rounded-lg ${
-                  legacyBehavior.suspiciousActivity ? 'bg-red-50' : 'bg-green-50'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">
-                      {legacyBehavior.suspiciousActivity ? '❗' : '✓'}
-                    </span>
-                    <span className={`font-medium ${
-                      legacyBehavior.suspiciousActivity ? 'text-red-700' : 'text-green-700'
-                    }`}>
-                      Suspicious Activity
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {legacyBehavior.suspiciousActivity 
-                      ? 'Potential fraud indicators present' 
-                      : 'No suspicious activity detected'
-                    }
-                  </p>
-                </div>
-
-                <div className="p-3 rounded-lg bg-blue-50">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">📊</span>
-                    <span className="font-medium text-blue-700">Document Consistency</span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Documents uploaded and ready for manual verification
-                  </p>
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Personal Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5 text-blue-500" /> Personal Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">Full Name</p>
+                <p className="font-medium">{app?.fullName}</p>
               </div>
-
-              {/* Behavior Details */}
-              <div className="pt-4 border-t">
-                <p className="text-sm font-medium text-gray-700 mb-3">Legacy Behavior Metrics</p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Typing Speed</span>
-                    <span className="font-mono">{legacyBehavior.typingSpeed || 0} cpm</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Mouse Movements</span>
-                    <span className="font-mono">{legacyBehavior.mouseMovements || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Time Spent</span>
-                    <span className="font-mono">{legacyBehavior.totalTimeSpent || 0}s</span>
-                  </div>
-                </div>
+              <div>
+                <p className="text-sm text-gray-500">Gender</p>
+                <p className="font-medium capitalize">{app?.gender}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Document ID</p>
+                <p className="font-mono">{app?.documentIdNumber}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Mobile</p>
+                <p className="font-mono">+91 {app?.mobileNumber}</p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Action Buttons */}
-          {!isAlreadyReviewed && (
-            <Card className="border shadow-sm">
-              <CardHeader className="bg-gray-50 border-b py-4">
-                <CardTitle className="text-base">Officer Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3">
-                <Button 
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => setShowConfirm('approve')}
-                  disabled={actionLoading}
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve Application
-                </Button>
-                <Button 
-                  variant="destructive"
-                  className="w-full"
-                  onClick={() => setShowConfirm('reject')}
-                  disabled={actionLoading}
-                >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Reject Application
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Already Reviewed Info */}
-          {isAlreadyReviewed && (
-            <Card className="border shadow-sm">
-              <CardContent className="p-4">
-                <div className={`p-4 rounded-lg ${
-                  application?.status === 'approved' ? 'bg-green-50' : 'bg-red-50'
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {application?.status === 'approved' ? (
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-600" />
-                    )}
-                    <span className={`font-semibold ${
-                      application?.status === 'approved' ? 'text-green-700' : 'text-red-700'
-                    }`}>
-                      Application {application?.status === 'approved' ? 'Approved' : 'Rejected'}
-                    </span>
-                  </div>
-                  {application?.reviewedAt && (
-                    <p className="text-sm text-gray-600">
-                      Reviewed on: {new Date(application.reviewedAt).toLocaleDateString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  )}
-                  {application?.rejectionReason && (
-                    <div className="mt-3 pt-3 border-t">
-                      <p className="text-sm font-medium text-gray-700">Rejection Reason:</p>
-                      <p className="text-sm text-gray-600 mt-1">{application.rejectionReason}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Submission Info */}
-          <Card className="border shadow-sm">
-            <CardHeader className="bg-gray-50 border-b py-3">
-              <CardTitle className="text-sm">Submission Details</CardTitle>
+          {/* Address */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-green-500" /> Address
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 text-sm space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Submitted</span>
-                <span>
-                  {application?.submittedAt 
-                    ? new Date(application.submittedAt).toLocaleDateString('en-IN')
-                    : '-'
-                  }
-                </span>
+            <CardContent>
+              <p>{app?.addressLine1}</p>
+              {app?.addressLine2 && <p>{app?.addressLine2}</p>}
+              <p>{app?.city}, {app?.taluka}, {app?.district}</p>
+              <p>{app?.state} - {app?.pincode}</p>
+            </CardContent>
+          </Card>
+
+          {/* Documents */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-purple-500" /> Documents
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium mb-2">Aadhaar Card</p>
+                {app?.aadhaarCardImage?.secureUrl ? (
+                  <a href={app.aadhaarCardImage.secureUrl} target="_blank" rel="noopener noreferrer">
+                    <img src={app.aadhaarCardImage.secureUrl} alt="Aadhaar" className="w-full h-40 object-cover rounded border hover:opacity-80" />
+                  </a>
+                ) : (
+                  <div className="w-full h-40 bg-gray-100 rounded flex items-center justify-center text-gray-400">
+                    <Image className="h-8 w-8" />
+                  </div>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Location</span>
-                <span>{application?.city}, {application?.state}</span>
+              <div>
+                <p className="text-sm font-medium mb-2">PAN Card</p>
+                {app?.panCardImage?.secureUrl ? (
+                  <a href={app.panCardImage.secureUrl} target="_blank" rel="noopener noreferrer">
+                    <img src={app.panCardImage.secureUrl} alt="PAN" className="w-full h-40 object-cover rounded border hover:opacity-80" />
+                  </a>
+                ) : (
+                  <div className="w-full h-40 bg-gray-100 rounded flex items-center justify-center text-gray-400">
+                    <Image className="h-8 w-8" />
+                  </div>
+                )}
               </div>
-              {application?.behavioralAnalysisId && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Behavioral ID</span>
-                  <span className="font-mono text-xs">
-                    {application.behavioralAnalysisId.toString().slice(-8)}
-                  </span>
+            </CardContent>
+          </Card>
+
+          {/* Selfies */}
+          {app?.biometricSelfies && Object.keys(app.biometricSelfies).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-orange-500" /> Face Captures
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-4 gap-4">
+                {['front', 'left', 'right', 'up'].map(angle => (
+                  <div key={angle}>
+                    <p className="text-xs text-gray-500 mb-1 capitalize">{angle}</p>
+                    {app.biometricSelfies[angle]?.secureUrl ? (
+                      <a href={app.biometricSelfies[angle].secureUrl} target="_blank" rel="noopener noreferrer">
+                        <img src={app.biometricSelfies[angle].secureUrl} alt={angle} className="w-full h-24 object-cover rounded border hover:opacity-80" />
+                      </a>
+                    ) : (
+                      <div className="w-full h-24 bg-gray-100 rounded flex items-center justify-center text-gray-400 text-xs">
+                        N/A
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Risk Assessment */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-red-500" /> Risk Assessment
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-center p-4 rounded-lg ${
+                riskScore >= 70 ? 'bg-red-50' :
+                riskScore >= 40 ? 'bg-yellow-50' : 'bg-green-50'
+              }`}>
+                <p className="text-4xl font-bold">{riskScore}</p>
+                <p className="text-sm text-gray-500">/100 Risk Score</p>
+              </div>
+              
+              {app?.aiAnalysis?.allIssues?.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm font-medium">Issues Detected:</p>
+                  {app.aiAnalysis.allIssues.map((issue, i) => (
+                    <p key={i} className="text-sm text-orange-600 bg-orange-50 p-2 rounded">• {issue}</p>
+                  ))}
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Timeline */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" /> Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <p><strong>Submitted:</strong> {app?.submittedAt ? new Date(app.submittedAt).toLocaleString() : 'N/A'}</p>
+              {app?.reviewedAt && (
+                <p><strong>Reviewed:</strong> {new Date(app.reviewedAt).toLocaleString()}</p>
+              )}
+              {app?.reviewedByName && (
+                <p><strong>Reviewed By:</strong> {app.reviewedByName}</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Actions */}
+          {!isAlreadyReviewed && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button 
+                  className="w-full bg-green-600 hover:bg-green-700" 
+                  onClick={handleApprove}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                  Approve Application
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  className="w-full"
+                  onClick={() => setShowRejectModal(true)}
+                  disabled={actionLoading}
+                >
+                  <XCircle className="h-4 w-4 mr-2" /> Reject Application
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Already Reviewed */}
+          {isAlreadyReviewed && (
+            <Card className={app?.status === 'approved' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}>
+              <CardContent className="p-4 text-center">
+                {app?.status === 'approved' ? (
+                  <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                ) : (
+                  <XCircle className="h-8 w-8 text-red-600 mx-auto mb-2" />
+                )}
+                <p className="font-semibold">Application {app?.status}</p>
+                {app?.rejectionReason && (
+                  <p className="text-sm mt-2">Reason: {app.rejectionReason}</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
