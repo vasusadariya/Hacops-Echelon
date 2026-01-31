@@ -1,0 +1,197 @@
+{
+  "metadata": {
+    "title": "National Identity Verification Portal",
+    "description": "Secure identity verification and KYC compliance portal - Government of India"
+  },
+  "common": {
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "home": "Home",
+    "aboutVerification": "About Verification",
+    "services": "Services",
+    "help": "Help",
+    "search": "Search",
+    "language": "Language",
+    "hindi": "हिन्दी",
+    "english": "English",
+    "loading": "Loading...",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "back": "Back",
+    "next": "Next",
+    "continue": "Continue",
+    "save": "Save"
+  },
+  "navbar": {
+    "title": "National Identity Verification Portal",
+    "subtitle": "Government of India (Mock)",
+    "fontSize": "A+"
+  },
+  "hero": {
+    "welcome": "WELCOME TO KYC VERIFY",
+    "headline": "Delivering Identity Verification to citizens in a timely, accessible and reliable manner",
+    "description": "A secure platform for identity verification, document validation, and application tracking.",
+    "startVerification": "Start Verification",
+    "republicOfIndia": "REPUBLIC OF INDIA",
+    "bharatGanrajya": "भारत गणराज्य",
+    "identityCard": "IDENTITY CARD",
+    "parichayPatra": "पर��चय पत्र",
+    "secureDocument": "Secure Government Document",
+    "verifiedSystems": "Verified Through Official Systems"
+  },
+  "quickLinks": {
+    "title": "Quick Links",
+    "applyVerification": {
+      "title": "Apply for Identity Verification",
+      "description": "Start your identity verification process"
+    },
+    "checkStatus": {
+      "title": "Check Application Status",
+      "description": "Track the progress of your application"
+    },
+    "trackProcess": {
+      "title": "Track Verification Process",
+      "description": "View verification stage and updates"
+    },
+    "registerFeedback": {
+      "title": "Register Feedback / Grievance",
+      "description": "Submit feedback or register a grievance"
+    },
+    "knowServices": {
+      "title": "Know About Services",
+      "description": "View available verification services"
+    }
+  },
+  "howItWorks": {
+    "title": "How Verification Works",
+    "steps": {
+      "step1": {
+        "title": "Submit Your Documents",
+        "description": "Upload your identity documents and required verification details through the secure portal."
+      },
+      "step2": {
+        "title": "Automated Verification",
+        "description": "The system performs document checks and identity validation using official verification mechanisms."
+      },
+      "step3": {
+        "title": "Application Review",
+        "description": "Consistency and application data are reviewed across submitted information and records."
+      },
+      "step4": {
+        "title": "Verification Complete",
+        "description": "Receive your verification status along with applicable compliance information."
+      }
+    },
+    "security": {
+      "title": "Security & Privacy",
+      "dataProtection": {
+        "title": "Data Protection",
+        "description": "All information is protected using secure transmission and storage practices."
+      },
+      "secureSystems": {
+        "title": "Secure Systems",
+        "description": "Multi-layer safeguards are in place to prevent misuse and unauthorized access."
+      },
+      "compliance": {
+        "title": "Regulatory Compliance",
+        "description": "Processes are aligned with applicable KYC and data-handling guidelines."
+      }
+    }
+  },
+  "services": {
+    "title": "Know About Our Services",
+    "subtitle": "A comprehensive identity verification framework designed to support secure and compliant KYC processes.",
+    "documentVerification": {
+      "title": "Document Verification",
+      "description": "Verification of submitted documents through structured checks and cross-reference mechanisms."
+    },
+    "biometricVerification": {
+      "title": "Biometric Verification",
+      "description": "Identity verification using facial, voice, or fingerprint-based signals where applicable."
+    },
+    "consistencyReview": {
+      "title": "Application Consistency Review",
+      "description": "Review of application data to identify inconsistencies or unusual patterns."
+    },
+    "fraudAssessment": {
+      "title": "Fraud Risk Assessment",
+      "description": "Detection of high-risk identity submissions through layered verification safeguards."
+    }
+  },
+  "footer": {
+    "about": {
+      "title": "About KYC Verify",
+      "aboutUs": "About Us",
+      "mission": "Mission & Vision",
+      "team": "Our Team",
+      "careers": "Careers"
+    },
+    "services": {
+      "title": "Services",
+      "documentVerification": "Document Verification",
+      "biometricVerification": "Biometric Verification",
+      "identityValidation": "Identity Validation",
+      "kycCompliance": "KYC Compliance"
+    },
+    "links": {
+      "title": "Useful Links",
+      "faq": "FAQ",
+      "privacy": "Privacy Policy",
+      "terms": "Terms & Conditions",
+      "support": "Contact Support"
+    },
+    "contact": {
+      "title": "Contact Us",
+      "phone": "1800-258-1800",
+      "email": "support@kycverify.gov.in",
+      "ministry": "Ministry of Identity Verification",
+      "government": "Government of India"
+    },
+    "languages": "Languages",
+    "copyright": "© 2026 KYC Verify. All rights reserved.",
+    "ministryFull": "Government of India | Ministry of Identity Verification",
+    "accessibility": "Website Accessibility Policy",
+    "lastUpdated": "Last Updated: January 31, 2026"
+  },
+  "auth": {
+    "portalTitle": "National Identity Verification Portal",
+    "secureAccess": "Secure access for registered users",
+    "loginTab": "Login",
+    "registerTab": "Register",
+    "emailLabel": "Email Address",
+    "emailPlaceholder": "name@example.com",
+    "passwordLabel": "Password",
+    "confirmPasswordLabel": "Confirm Password",
+    "fullNameLabel": "Full Name",
+    "forgotPassword": "Forgot password?",
+    "loginButton": "Login",
+    "registerButton": "Register",
+    "signingIn": "Signing in…",
+    "creatingAccount": "Creating account…",
+    "registrationSuccess": "Registration successful! Please login.",
+    "passwordMismatch": "Passwords do not match",
+    "passwordMinLength": "Password must be at least 6 characters"
+  },
+  "dashboard": {
+    "title": "User Dashboard",
+    "subtitle": "National Identity Verification Portal",
+    "profileInfo": "Profile Information",
+    "accountDetails": "Registered account details",
+    "fullName": "Full Name",
+    "emailAddress": "Email Address",
+    "userRole": "User Role",
+    "memberSince": "Member Since"
+  },
+  "forgotPassword": {
+    "title": "Forgot Password",
+    "description": "Enter your email address and we'll send you a link to reset your password.",
+    "sendInstructions": "Send Reset Instructions",
+    "sending": "Sending request…",
+    "backToLogin": "Back to Login",
+    "successTitle": "Check Your Email",
+    "successMessage": "If an account exists with this email, you will receive password reset instructions."
+  }
+}

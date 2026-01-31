@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLogin, useRegister, useCurrentUser } from '@/hooks/use-auth';
+import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,7 @@ import {
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 export default function AuthPage() {
+  const t = useTranslations('auth');
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: user, isLoading: userLoading } = useCurrentUser();
@@ -77,12 +79,12 @@ export default function AuthPage() {
     setError('');
 
     if (signupPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwordMismatch'));
       return;
     }
 
     if (signupPassword.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError(t('passwordMinLength'));
       return;
     }
 
@@ -98,8 +100,7 @@ export default function AuthPage() {
     }
   };
 
-  const isLoading =
-    loginMutation.isPending || registerMutation.isPending;
+  const isLoading = loginMutation.isPending || registerMutation.isPending;
 
   if (userLoading) {
     return (
@@ -116,11 +117,11 @@ export default function AuthPage() {
           <div className="mx-auto text-3xl">🏛️</div>
 
           <CardTitle className="text-xl font-semibold">
-            National Identity Verification Portal
+            {t('portalTitle')}
           </CardTitle>
 
           <CardDescription>
-            Secure access for registered users
+            {t('secureAccess')}
           </CardDescription>
         </CardHeader>
 
@@ -128,10 +129,10 @@ export default function AuthPage() {
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid grid-cols-2 mb-4">
               <TabsTrigger value="login">
-                Login
+                {t('loginTab')}
               </TabsTrigger>
               <TabsTrigger value="signup">
-                Register
+                {t('registerTab')}
               </TabsTrigger>
             </TabsList>
 
@@ -146,37 +147,30 @@ export default function AuthPage() {
 
             {/* LOGIN */}
             <TabsContent value="login">
-              <form
-                onSubmit={handleLogin}
-                className="space-y-4"
-              >
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-email">
-                    Email Address
+                    {t('emailLabel')}
                   </Label>
                   <Input
                     id="login-email"
                     type="email"
-                    placeholder="name@example.com"
+                    placeholder={t('emailPlaceholder')}
                     value={loginEmail}
-                    onChange={(e) =>
-                      setLoginEmail(e.target.value)
-                    }
+                    onChange={(e) => setLoginEmail(e.target.value)}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="login-password">
-                    Password
+                    {t('passwordLabel')}
                   </Label>
                   <Input
                     id="login-password"
                     type="password"
                     value={loginPassword}
-                    onChange={(e) =>
-                      setLoginPassword(e.target.value)
-                    }
+                    onChange={(e) => setLoginPassword(e.target.value)}
                     required
                   />
                 </div>
@@ -186,22 +180,18 @@ export default function AuthPage() {
                     href="/forgot-password"
                     className="text-sm text-primary hover:underline"
                   >
-                    Forgot password?
+                    {t('forgotPassword')}
                   </Link>
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isLoading}
-                >
+                <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in…
+                      {t('signingIn')}
                     </>
                   ) : (
-                    'Login'
+                    t('loginButton')
                   )}
                 </Button>
               </form>
@@ -209,82 +199,67 @@ export default function AuthPage() {
 
             {/* SIGNUP */}
             <TabsContent value="signup">
-              <form
-                onSubmit={handleSignup}
-                className="space-y-4"
-              >
+              <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">
-                    Full Name
+                    {t('fullNameLabel')}
                   </Label>
                   <Input
                     id="signup-name"
                     type="text"
                     value={signupName}
-                    onChange={(e) =>
-                      setSignupName(e.target.value)
-                    }
+                    onChange={(e) => setSignupName(e.target.value)}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">
-                    Email Address
+                    {t('emailLabel')}
                   </Label>
                   <Input
                     id="signup-email"
                     type="email"
                     value={signupEmail}
-                    onChange={(e) =>
-                      setSignupEmail(e.target.value)
-                    }
+                    onChange={(e) => setSignupEmail(e.target.value)}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">
-                    Password
+                    {t('passwordLabel')}
                   </Label>
                   <Input
                     id="signup-password"
                     type="password"
                     value={signupPassword}
-                    onChange={(e) =>
-                      setSignupPassword(e.target.value)
-                    }
+                    onChange={(e) => setSignupPassword(e.target.value)}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="confirm-password">
-                    Confirm Password
+                    {t('confirmPasswordLabel')}
                   </Label>
                   <Input
                     id="confirm-password"
                     type="password"
                     value={confirmPassword}
-                    onChange={(e) =>
-                      setConfirmPassword(e.target.value)
-                    }
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isLoading}
-                >
+                <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account…
+                      {t('creatingAccount')}
                     </>
                   ) : (
-                    'Register'
+                    t('registerButton')
                   )}
                 </Button>
               </form>

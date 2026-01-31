@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser, useLogout } from '@/hooks/use-auth';
+import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +17,8 @@ import {
 import { Loader2, LogOut, User } from 'lucide-react';
 
 export default function DashboardPage() {
+  const t = useTranslations('dashboard');
+  const tCommon = useTranslations('common');
   const router = useRouter();
   const { data: user, isLoading } = useCurrentUser();
   const logout = useLogout();
@@ -49,16 +52,16 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">
-              User Dashboard
+              {t('title')}
             </h1>
             <p className="text-sm text-muted-foreground">
-              National Identity Verification Portal
+              {t('subtitle')}
             </p>
           </div>
 
           <Button variant="outline" onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" />
-            Logout
+            {tCommon('logout')}
           </Button>
         </div>
 
@@ -67,37 +70,37 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <User className="h-5 w-5 text-primary" />
-              Profile Information
+              {t('profileInfo')}
             </CardTitle>
             <CardDescription>
-              Registered account details
+              {t('accountDetails')}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
-              <p className="text-muted-foreground">Full Name</p>
+              <p className="text-muted-foreground">{t('fullName')}</p>
               <p className="text-base font-medium">
                 {user.name}
               </p>
             </div>
 
             <div>
-              <p className="text-muted-foreground">Email Address</p>
+              <p className="text-muted-foreground">{t('emailAddress')}</p>
               <p className="text-base font-medium">
                 {user.email}
               </p>
             </div>
 
             <div>
-              <p className="text-muted-foreground">User Role</p>
+              <p className="text-muted-foreground">{t('userRole')}</p>
               <p className="text-base font-medium capitalize">
                 {user.role}
               </p>
             </div>
 
             <div>
-              <p className="text-muted-foreground">Member Since</p>
+              <p className="text-muted-foreground">{t('memberSince')}</p>
               <p className="text-base font-medium">
                 {new Date(user.createdAt).toLocaleDateString(
                   'en-US',

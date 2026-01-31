@@ -2,37 +2,35 @@
 
 import { Globe, Calendar, MapPin, MessageSquare, Zap } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 export function QuickLinks() {
+  const t = useTranslations('quickLinks');
+
   const links = [
     {
       icon: Globe,
-      title: 'Apply for Identity Verification',
-      description: 'Start your identity verification process',
+      titleKey: 'applyVerification',
       href: '/apply',
     },
     {
       icon: Calendar,
-      title: 'Check Application Status',
-      description: 'Track the progress of your application',
+      titleKey: 'checkStatus',
       href: '/status',
     },
     {
       icon: MapPin,
-      title: 'Track Verification Process',
-      description: 'View verification stage and updates',
+      titleKey: 'trackProcess',
       href: '/track',
     },
     {
       icon: MessageSquare,
-      title: 'Register Feedback / Grievance',
-      description: 'Submit feedback or register a grievance',
+      titleKey: 'registerFeedback',
       href: '/feedback',
     },
     {
       icon: Zap,
-      title: 'Know About Services',
-      description: 'View available verification services',
+      titleKey: 'knowServices',
       href: '/services',
     },
   ];
@@ -42,7 +40,7 @@ export function QuickLinks() {
       <div className="max-w-7xl mx-auto">
 
         <h2 className="text-3xl md:text-4xl font-semibold text-center mb-12">
-          Quick Links
+          {t('title')}
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -59,11 +57,11 @@ export function QuickLinks() {
                     </div>
 
                     <h3 className="text-base font-semibold mb-2">
-                      {link.title}
+                      {t(`${link.titleKey}.title`)}
                     </h3>
 
                     <p className="text-sm text-muted-foreground">
-                      {link.description}
+                      {t(`${link.titleKey}.description`)}
                     </p>
 
                   </div>

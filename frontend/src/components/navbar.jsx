@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { useTranslations } from 'next-intl';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,10 +16,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 import { Search, Menu, X, LogOut, User, Settings } from "lucide-react";
 
 export default function Navbar() {
+  const t = useTranslations();
   const { user, logout, loading } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -63,10 +66,10 @@ export default function Navbar() {
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-              <Link href="/" className="hover:text-primary">Home</Link>
-              <Link href="#" className="hover:text-primary">About Verification</Link>
-              <Link href="#" className="hover:text-primary">Services</Link>
-              <Link href="#" className="hover:text-primary">Help</Link>
+              <Link href="/" className="hover:text-primary">{t('common.home')}</Link>
+              <Link href="#" className="hover:text-primary">{t('common.aboutVerification')}</Link>
+              <Link href="#" className="hover:text-primary">{t('common.services')}</Link>
+              <Link href="#" className="hover:text-primary">{t('common.help')}</Link>
             </nav>
 
             {/* Right Actions */}
@@ -77,12 +80,11 @@ export default function Navbar() {
               </button>
 
               <Link href="#" className="text-xs border px-2 py-1 rounded">
-                A+
+                {t('navbar.fontSize')}
               </Link>
 
-              <Link href="#" className="text-xs hover:underline">
-                हिन्दी
-              </Link>
+              {/* Language Switcher */}
+              <LanguageSwitcher />
 
               {/* AUTH SECTION */}
               {loading ? (
@@ -114,13 +116,13 @@ export default function Navbar() {
                     <DropdownMenuItem asChild>
                       <Link href="/dashboard">
                         <User className="mr-2 h-4 w-4" />
-                        Dashboard
+                        {t('common.dashboard')}
                       </Link>
                     </DropdownMenuItem>
 
                     <DropdownMenuItem>
                       <Settings className="mr-2 h-4 w-4" />
-                      Settings
+                      {t('common.settings')}
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator />
@@ -130,7 +132,7 @@ export default function Navbar() {
                       className="text-destructive cursor-pointer"
                     >
                       <LogOut className="mr-2 h-4 w-4" />
-                      Logout
+                      {t('common.logout')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -138,12 +140,12 @@ export default function Navbar() {
                 <>
                   <Link href="/auth">
                     <Button variant="outline" className="hidden sm:inline-flex">
-                      Login
+                      {t('common.login')}
                     </Button>
                   </Link>
                   <Link href="/auth">
                     <Button className="hidden sm:inline-flex">
-                      Register
+                      {t('common.register')}
                     </Button>
                   </Link>
                 </>
@@ -162,21 +164,21 @@ export default function Navbar() {
           {/* 📱 Mobile Menu */}
           {mobileMenuOpen && (
             <div className="md:hidden mt-4 border-t pt-4 space-y-3 text-sm">
-              <Link href="/" className="block">Home</Link>
-              <Link href="#" className="block">About Verification</Link>
-              <Link href="#" className="block">Services</Link>
-              <Link href="#" className="block">Help</Link>
+              <Link href="/" className="block">{t('common.home')}</Link>
+              <Link href="#" className="block">{t('common.aboutVerification')}</Link>
+              <Link href="#" className="block">{t('common.services')}</Link>
+              <Link href="#" className="block">{t('common.help')}</Link>
 
               {!user && (
                 <div className="flex gap-2 pt-2">
                   <Link href="/auth" className="flex-1">
                     <Button variant="outline" className="w-full">
-                      Login
+                      {t('common.login')}
                     </Button>
                   </Link>
                   <Link href="/auth" className="flex-1">
                     <Button className="w-full">
-                      Register
+                      {t('common.register')}
                     </Button>
                   </Link>
                 </div>
