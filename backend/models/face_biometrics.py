@@ -6,7 +6,9 @@ from datetime import datetime
 import numpy as np
 import torch
 
-from transformers import AutoImageProcessor, SiglipForImageClassification
+from transformers.models.auto.image_processing_auto import AutoImageProcessor
+from transformers import SiglipForImageClassification
+
 
 router = APIRouter(prefix="/face", tags=["Face Biometrics"])
 
