@@ -7,9 +7,8 @@ export async function GET(request, { params }) {
   try {
     const { id } = params;
 
-    // Auth check
     const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -22,9 +21,7 @@ export async function GET(request, { params }) {
     await connectDB();
     const db = mongoose.connection.db;
     
-    // Check if user is officer
-    const usersCollection = db.collection('users');
-    const user = await usersCollection.findOne({ 
+    const user = await db.collection('users').findOne({ 
       _id: new mongoose.Types.ObjectId(decoded.userId) 
     });
 
@@ -32,9 +29,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Get application
-    const verificationsCollection = db.collection('verifications');
-    const application = await verificationsCollection.findOne({
+    const application = await db.collection('verifications').findOne({
       _id: new mongoose.Types.ObjectId(id)
     });
 
@@ -45,7 +40,7 @@ export async function GET(request, { params }) {
     return NextResponse.json(application);
 
   } catch (error) {
-    console.error('Application fetch error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Get application error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
