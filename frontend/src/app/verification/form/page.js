@@ -44,6 +44,7 @@ export default function VerificationFormPage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [captchaVerified, setCaptchaVerified] = useState(false);
   const [verifyingCaptcha, setVerifyingCaptcha] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState(''); // For showing progress
 
   // Form state
   const [formData, setFormData] = useState({
@@ -225,6 +226,49 @@ export default function VerificationFormPage() {
     return Object.keys(errors).length === 0;
   };
 
+  // Helper function to convert base64 to blob
+  const base64ToBlob = (base64Data) => {
+    const parts = base64Data.split(',');
+    const contentType = parts[0].match(/:(.*?);/)[1];
+    const raw = atob(parts[1]);
+    const rawLength = raw.length;
+    const uint8Array = new Uint8Array(rawLength);
+    
+    for (let i = 0; i < rawLength; i++) {
+      uint8Array[i] = raw.charCodeAt(i);
+    }
+    
+    return new Blob([uint8Array], { type: contentType });
+  };
+
+  // Upload face images to Cloudinary
+  const uploadFaceImagesToCloudinary = async () => {
+    const uploadPromises = ['front', 'left', 'right', 'up'].map(async (angle) => {
+      const imageData = faceCaptures[angle];
+      const blob = base64ToBlob(imageData);
+      const formData = new FormData();
+      formData.append('file', blob, `face_${angle}.jpg`);
+      formData.append('upload_preset', process.env.CLOUDINARY_UPLOAD_PRESET || 'ml_default');
+      formData.append('folder', 'kyc_verification/faces');
+      
+      const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload`;
+      
+      const response = await fetch(cloudinaryUrl, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to upload ${angle} face image to Cloudinary`);
+      }
+      
+      const data = await response.json();
+      return data.secure_url;
+    });
+    
+    return Promise.all(uploadPromises);
+  };
+
   // Submit form
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -243,6 +287,7 @@ export default function VerificationFormPage() {
     }
 
     setIsSubmitting(true);
+    setSubmitStatus('');
 
     try {
       let recaptchaToken = '';
@@ -250,6 +295,37 @@ export default function VerificationFormPage() {
         recaptchaToken = await executeRecaptcha('verification_submit');
       }
       
+      // Step 1: Upload face images to Cloudinary
+      setSubmitStatus('Uploading face images...');
+      const faceImageUrls = await uploadFaceImagesToCloudinary();
+      
+      // Step 2: Call backend face verification API
+      setSubmitStatus('Verifying face authenticity...');
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      const faceVerifyResponse = await fetch(`${backendUrl}/face/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          frame_urls: faceImageUrls
+        })
+      });
+      
+      if (!faceVerifyResponse.ok) {
+        throw new Error('Face verification failed. Please try again.');
+      }
+      
+      const faceVerificationResult = await faceVerifyResponse.json();
+      console.log('Face verification result:', faceVerificationResult);
+      
+      // Check if face verification passed
+      if (faceVerificationResult.result.decision === 'SUSPECT') {
+        throw new Error('Face verification detected potential issues. Please ensure good lighting and try again.');
+      }
+      
+      // Step 3: Prepare form submission
+      setSubmitStatus('Submitting your application...');
       const behaviorData = getBehaviorData();
       const submitData = new FormData();
       
@@ -262,7 +338,11 @@ export default function VerificationFormPage() {
       submitData.append('aadhaarCard', aadhaarCard);
       submitData.append('panCard', panCard);
       
-      // Add all 4 face captures as JSON
+      // Add face verification results and URLs
+      submitData.append('faceVerificationResult', JSON.stringify(faceVerificationResult));
+      submitData.append('faceImageUrls', JSON.stringify(faceImageUrls));
+      
+      // Add all 4 face captures as JSON (base64)
       submitData.append('faceCaptures', JSON.stringify(faceCaptures));
       
       // Add individual captures for backward compatibility
@@ -294,6 +374,7 @@ export default function VerificationFormPage() {
       router.push('/verification/status?success=true');
     } catch (error) {
       setSubmitError(error.message || 'An error occurred during submission');
+      setSubmitStatus('');
     } finally {
       setIsSubmitting(false);
     }
@@ -333,6 +414,13 @@ export default function VerificationFormPage() {
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          )}
+          
+          {submitStatus && !submitError && (
+            <Alert className="mb-6 border-blue-500 bg-blue-50">
+              <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+              <AlertDescription className="text-blue-600">{submitStatus}</AlertDescription>
             </Alert>
           )}
 
