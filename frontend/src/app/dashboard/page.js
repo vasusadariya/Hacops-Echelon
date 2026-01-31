@@ -3,13 +3,21 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser, useLogout } from '@/hooks/use-auth';
+
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+
 import { Loader2, LogOut, User } from 'lucide-react';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { data: user, isLoading, isError } = useCurrentUser();
+  const { data: user, isLoading } = useCurrentUser();
   const logout = useLogout();
 
   useEffect(() => {
@@ -25,60 +33,85 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 to-purple-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+    <div className="min-h-screen bg-muted/30 px-6 py-8">
+      <div className="max-w-5xl mx-auto space-y-8">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">
+              User Dashboard
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              National Identity Verification Portal
+            </p>
+          </div>
+
           <Button variant="outline" onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" />
             Logout
           </Button>
         </div>
 
-        <Card>
+        {/* Profile Card */}
+        <Card className="border border-border">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <User className="h-5 w-5 text-primary" />
               Profile Information
             </CardTitle>
-            <CardDescription>Your account details</CardDescription>
+            <CardDescription>
+              Registered account details
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Name</label>
-              <p className="text-lg">{user.name}</p>
+              <p className="text-muted-foreground">Full Name</p>
+              <p className="text-base font-medium">
+                {user.name}
+              </p>
             </div>
+
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Email</label>
-              <p className="text-lg">{user.email}</p>
+              <p className="text-muted-foreground">Email Address</p>
+              <p className="text-base font-medium">
+                {user.email}
+              </p>
             </div>
+
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Role</label>
-              <p className="text-lg capitalize">{user.role}</p>
+              <p className="text-muted-foreground">User Role</p>
+              <p className="text-base font-medium capitalize">
+                {user.role}
+              </p>
             </div>
+
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Member Since</label>
-              <p className="text-lg">
-                {new Date(user.createdAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
+              <p className="text-muted-foreground">Member Since</p>
+              <p className="text-base font-medium">
+                {new Date(user.createdAt).toLocaleDateString(
+                  'en-US',
+                  {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  }
+                )}
               </p>
             </div>
           </CardContent>
         </Card>
+
       </div>
     </div>
   );

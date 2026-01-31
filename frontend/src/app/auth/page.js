@@ -4,35 +4,47 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useLogin, useRegister, useCurrentUser } from '@/hooks/use-auth';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 export default function AuthPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: user, isLoading: userLoading } = useCurrentUser();
-  
+
   const loginMutation = useLogin();
   const registerMutation = useRegister();
-  
+
   const [error, setError] = useState('');
-  
+
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  
+
   // Signup state
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user && !userLoading) {
       router.push('/dashboard');
@@ -49,9 +61,11 @@ export default function AuthPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-
     try {
-      await loginMutation.mutateAsync({ email: loginEmail, password: loginPassword });
+      await loginMutation.mutateAsync({
+        email: loginEmail,
+        password: loginPassword,
+      });
       router.push('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
@@ -73,10 +87,10 @@ export default function AuthPage() {
     }
 
     try {
-      await registerMutation.mutateAsync({ 
-        name: signupName, 
-        email: signupEmail, 
-        password: signupPassword 
+      await registerMutation.mutateAsync({
+        name: signupName,
+        email: signupEmail,
+        password: signupPassword,
       });
       router.push('/dashboard');
     } catch (err) {
@@ -84,75 +98,107 @@ export default function AuthPage() {
     }
   };
 
-  const isLoading = loginMutation.isPending || registerMutation.isPending;
+  const isLoading =
+    loginMutation.isPending || registerMutation.isPending;
 
   if (userLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-purple-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">Welcome</CardTitle>
-          <CardDescription className="text-center">
-            Login or create an account to continue
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
+      <Card className="w-full max-w-md border border-border shadow-sm">
+        <CardHeader className="text-center space-y-2">
+          <div className="mx-auto text-3xl">🏛️</div>
+
+          <CardTitle className="text-xl font-semibold">
+            National Identity Verification Portal
+          </CardTitle>
+
+          <CardDescription>
+            Secure access for registered users
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Signup</TabsTrigger>
+            <TabsList className="grid grid-cols-2 mb-4">
+              <TabsTrigger value="login">
+                Login
+              </TabsTrigger>
+              <TabsTrigger value="signup">
+                Register
+              </TabsTrigger>
             </TabsList>
 
             {error && (
-              <Alert variant="destructive" className="mt-4">
+              <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>
+                  {error}
+                </AlertDescription>
               </Alert>
             )}
 
+            {/* LOGIN */}
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4 mt-4">
+              <form
+                onSubmit={handleLogin}
+                className="space-y-4"
+              >
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-email">
+                    Email Address
+                  </Label>
                   <Input
                     id="login-email"
                     type="email"
                     placeholder="name@example.com"
                     value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
+                    onChange={(e) =>
+                      setLoginEmail(e.target.value)
+                    }
                     required
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
+                  <Label htmlFor="login-password">
+                    Password
+                  </Label>
                   <Input
                     id="login-password"
                     type="password"
                     value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
+                    onChange={(e) =>
+                      setLoginPassword(e.target.value)
+                    }
                     required
                   />
                 </div>
+
                 <div className="text-right">
                   <Link
                     href="/forgot-password"
-                    className="text-sm text-blue-600 hover:underline"
+                    className="text-sm text-primary hover:underline"
                   >
                     Forgot password?
                   </Link>
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading}
+                >
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Loading...
+                      Signing in…
                     </>
                   ) : (
                     'Login'
@@ -161,58 +207,84 @@ export default function AuthPage() {
               </form>
             </TabsContent>
 
+            {/* SIGNUP */}
             <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4 mt-4">
+              <form
+                onSubmit={handleSignup}
+                className="space-y-4"
+              >
                 <div className="space-y-2">
-                  <Label htmlFor="signup-name">Name</Label>
+                  <Label htmlFor="signup-name">
+                    Full Name
+                  </Label>
                   <Input
                     id="signup-name"
                     type="text"
-                    placeholder="John Doe"
                     value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
+                    onChange={(e) =>
+                      setSignupName(e.target.value)
+                    }
                     required
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
+                  <Label htmlFor="signup-email">
+                    Email Address
+                  </Label>
                   <Input
                     id="signup-email"
                     type="email"
-                    placeholder="name@example.com"
                     value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
+                    onChange={(e) =>
+                      setSignupEmail(e.target.value)
+                    }
                     required
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
+                  <Label htmlFor="signup-password">
+                    Password
+                  </Label>
                   <Input
                     id="signup-password"
                     type="password"
                     value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
+                    onChange={(e) =>
+                      setSignupPassword(e.target.value)
+                    }
                     required
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Label htmlFor="confirm-password">
+                    Confirm Password
+                  </Label>
                   <Input
                     id="confirm-password"
                     type="password"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) =>
+                      setConfirmPassword(e.target.value)
+                    }
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading}
+                >
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account...
+                      Creating account…
                     </>
                   ) : (
-                    'Sign Up'
+                    'Register'
                   )}
                 </Button>
               </form>
