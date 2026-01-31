@@ -1,14 +1,15 @@
-# backend/models/face_biometrics.py
-
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, HTTPException
 from typing import List
+from pydantic import BaseModel, HttpUrl
 from PIL import Image
-import io
 from datetime import datetime
 import numpy as np
 import torch
+import io
+import httpx
 
-from transformers import AutoImageProcessor, SiglipForImageClassification
+from transformers.models.auto.image_processing_auto import AutoImageProcessor
+from transformers import SiglipForImageClassification
 
 router = APIRouter(prefix="/face", tags=["Face Biometrics"])
 
@@ -20,12 +21,21 @@ model = SiglipForImageClassification.from_pretrained(MODEL_NAME).to(device)
 processor = AutoImageProcessor.from_pretrained(MODEL_NAME)
 model.eval()
 
+# -------------------------
+# Request schema
+# -------------------------
+class FaceVerifyRequest(BaseModel):
+    frame_urls: List[HttpUrl]
+
+
+# -------------------------
+# Core inference functions
+# -------------------------
 def predict_single_image(image: Image.Image) -> float:
-    """
-    Returns fake probability for a single image
-    """
     image = image.convert("RGB")
-    inputs = processor(images=image, return_tensors="pt").to(device)
+    inputs = processor(images=image, return_tensors="pt")
+
+    inputs = {k: v.to(device) for k, v in inputs.items()}
 
     with torch.no_grad():
         outputs = model(**inputs)
@@ -36,9 +46,6 @@ def predict_single_image(image: Image.Image) -> float:
 
 
 def predict_multiple_frames(images: List[Image.Image]) -> dict:
-    """
-    Aggregate predictions across multiple frames using MEDIAN
-    """
     fake_probs = [predict_single_image(img) for img in images]
 
     median_fake = float(np.median(fake_probs))
@@ -58,30 +65,45 @@ def predict_multiple_frames(images: List[Image.Image]) -> dict:
         "decision": decision
     }
 
-@router.post("/verify")
-async def verify_face(
-    frames: List[UploadFile] = File(...)
-):
-    if len(frames) < 3:
+
+# -------------------------
+# Helper: fetch image from URL
+# -------------------------
+async def fetch_image(url: str) -> Image.Image:
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+
+        image = Image.open(io.BytesIO(resp.content)).convert("RGB")
+        return image
+
+    except Exception:
         raise HTTPException(
             status_code=400,
-            detail="At least 3 frames are required"
+            detail=f"Failed to load image from URL: {url}"
         )
 
-    images = []
 
-    for file in frames:
-        if file.content_type not in ["image/jpeg", "image/png"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Only JPG and PNG images are allowed"
-            )
+# -------------------------
+# API endpoint
+# -------------------------
+@router.post("/verify")
+async def verify_face(payload: FaceVerifyRequest):
+    frame_urls = payload.frame_urls
 
-        image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    if len(frame_urls) != 4:
+        raise HTTPException(
+            status_code=400,
+            detail="Exactly 4 face frames are required"
+        )
+
+    images: List[Image.Image] = []
+
+    for url in frame_urls:
+        image = await fetch_image(str(url))
         images.append(image)
 
-    # Run deepfake / liveness model
     result = predict_multiple_frames(images)
 
     return {

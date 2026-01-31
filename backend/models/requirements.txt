@@ -1,6 +1,26 @@
 fastapi 
 uvicorn 
 python-multipart 
-pillow 
-transformers 
-torch
+ultralytics
+ultralyticsplus
+tensorflow
+keras
+
+numpy==1.26.4
+pillow==10.3.0
+
+# -----------------------------
+# PyTorch ecosystem (CPU)
+# -----------------------------
+torch==2.2.2
+torchvision==0.17.2
+
+# -----------------------------
+# Transformers (stable, no v5 breakage)
+# -----------------------------
+transformers==4.41.2
+
+# -----------------------------
+# TensorFlow (CPU)
+# -----------------------------
+tensorflow==2.20.0
