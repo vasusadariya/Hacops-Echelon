@@ -8,7 +8,7 @@ from routes.behavioral_analysis import router as behavioral_router
 from models.face_biometrics import router as face_router
 from models.manipulation_detector import router as manipulation_router
 from models.ocrpan import router as pan_router
-from models.ocraadhar import router as aadhar_router  # ✅ ADD THIS
+from models.ocraadhar import router as aadhar_router  
 
 # ------------------------
 # App initialization

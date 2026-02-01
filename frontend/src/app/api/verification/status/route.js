@@ -1,15 +1,7 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-
-const MONGODB_URI = process.env.MONGODB_URI;
-
-async function connectToDatabase() {
-  if (mongoose.connection.readyState === 1) {
-    return mongoose.connection.db;
-  }
-  await mongoose.connect(MONGODB_URI);
-  return mongoose.connection.db;
-}
+import connectDB from '@/lib/mongodb';
+import Verification from '@/models/Verification';
 
 function verifyToken(token) {
   try {
@@ -33,12 +25,11 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const db = await connectToDatabase();
+    await connectDB();
 
-    const verification = await db.collection('verifications').findOne(
-      { userId: new mongoose.Types.ObjectId(decoded.userId) },
-      { sort: { createdAt: -1 } }
-    );
+    const verification = await Verification.findOne(
+      { userId: decoded.userId }
+    ).sort({ createdAt: -1 });
 
     if (!verification) {
       return NextResponse.json({
@@ -123,10 +114,10 @@ export async function GET(request) {
       reviewedByName: verification.reviewedByName,
       
       // AI Analysis summary (if available)
-      aiAnalysis: verification.aiAnalysis ? {
-        riskScore: verification.aiAnalysis.overallRiskScore,
-        recommendation: verification.aiAnalysis.recommendation,
-        issuesCount: verification.aiAnalysis.allIssues?.length || 0
+      aiAnalysis: verification.aiVerificationResults ? {
+        riskScore: verification.aiVerificationResults.overallScore,
+        recommendation: verification.aiVerificationResults.aiDecision,
+        issuesCount: 0
       } : null,
       
       // Status history
