@@ -67,18 +67,14 @@ export default function Navbar() {
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-              <Link href="/" className="hover:text-primary">{t('common.home')}</Link>
-              <Link href="#" className="hover:text-primary">{t('common.aboutVerification')}</Link>
-              <Link href="#" className="hover:text-primary">{t('common.services')}</Link>
-              <Link href="#" className="hover:text-primary">{t('common.help')}</Link>
+              <Link href="/" className="hover:text-primary">Home</Link>
+              <Link href="/verification" className="hover:text-primary">Verification</Link>
+              <Link href="/help" className="hover:text-primary">Help</Link>
             </nav>
 
             {/* Right Actions */}
             <div className="flex items-center gap-3">
 
-              <button className="p-2 hover:bg-accent rounded-md">
-                <Search className="w-5 h-5" />
-              </button>
 
               <Link href="#" className="text-xs border px-2 py-1 rounded">
                 {t('navbar.fontSize')}

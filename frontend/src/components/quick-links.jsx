@@ -11,17 +11,17 @@ export function QuickLinks() {
     {
       icon: Globe,
       titleKey: 'applyVerification',
-      href: '/apply',
+      href: '/verification',
     },
     {
       icon: Calendar,
       titleKey: 'checkStatus',
-      href: '/status',
+      href: '/verification',
     },
     {
       icon: MapPin,
       titleKey: 'trackProcess',
-      href: '/track',
+      href: '/verification',
     },
     {
       icon: MessageSquare,

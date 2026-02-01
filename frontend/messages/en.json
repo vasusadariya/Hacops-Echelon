@@ -38,7 +38,7 @@
     "republicOfIndia": "REPUBLIC OF INDIA",
     "bharatGanrajya": "भारत गणराज्य",
     "identityCard": "IDENTITY CARD",
-    "parichayPatra": "पर��चय पत्र",
+    "parichayPatra": "परिचय पत्र",
     "secureDocument": "Secure Government Document",
     "verifiedSystems": "Verified Through Official Systems"
   },
@@ -193,5 +193,114 @@
     "backToLogin": "Back to Login",
     "successTitle": "Check Your Email",
     "successMessage": "If an account exists with this email, you will receive password reset instructions."
+  }
+  ,
+  "help": {
+    "title": "Help Centre",
+    "subtitle": "Find answers to common questions about identity verification",
+    "searchPlaceholder": "Search for help...",
+    "searchResults": "Found {count} result(s) for \"{query}\"",
+    "noResults": "No results for \"{query}\"",
+    "noResultsMessage": "We couldn't find any matching questions. Try different keywords.",
+    "clearSearch": "Clear Search",
+    "faqTitle": "Frequently Asked Questions",
+    "questions": "questions",
+    
+    "categories": {
+      "general": {
+        "title": "General Questions",
+        "q1": "What is the National Identity Verification Portal?",
+        "a1": "The National Identity Verification Portal is an official Government of India initiative that provides secure digital identity verification services to citizens. It enables paperless verification of identity documents through a simple online process.",
+        "q2": "Who can use this service?",
+        "a2": "Any Indian citizen with valid identity documents (Aadhaar Card and PAN Card) can use this service. You must be 18 years or older and have access to a device with a camera for biometric verification.",
+        "q3": "Is this service free of charge?",
+        "a3": "Yes, the identity verification service is completely free for all citizens. There are no hidden charges or fees associated with the verification process.",
+        "q4": "How long does the verification process take?",
+        "a4": "Most applications are processed within 24-48 hours. The automated verification happens instantly, while officer review may take 1-2 business days."
+      },
+      "documents": {
+        "title": "Document Requirements",
+        "q1": "What documents do I need for verification?",
+        "a1": "You need two documents: (1) Aadhaar Card - front side clearly visible, and (2) PAN Card - front side clearly visible. Both documents should be original and not expired.",
+        "q2": "What format should my document images be in?",
+        "a2": "Document images should be in JPG or PNG format, with a maximum file size of 5MB each. Ensure the images are clear, well-lit, and all text is readable.",
+        "q3": "Can I use scanned copies of my documents?",
+        "a3": "Yes, you can use scanned copies as long as they are clear and all details are legible. Photographs taken with a smartphone camera are also acceptable.",
+        "q4": "What if my document image is rejected?",
+        "a4": "If your document is rejected, you will receive a notification explaining the reason. Common issues include blurry images, partial visibility, or glare. You can resubmit with a clearer image."
+      },
+      "biometric": {
+        "title": "Biometric Verification",
+        "q1": "What is biometric face verification?",
+        "a1": "Biometric face verification captures your face from multiple angles (front, left, right, up) to confirm your identity and ensure you are physically present during verification.",
+        "q2": "Why do I need to capture my face from 4 angles?",
+        "a2": "Multi-angle capture provides more accurate verification and helps prevent fraud. It ensures the system can confirm your identity from different perspectives.",
+        "q3": "What if my camera is not working?",
+        "a3": "You need a working camera to complete verification. If your device camera is not working, try using a different device such as a smartphone or laptop with a functional camera.",
+        "q4": "Tips for a successful face capture?",
+        "a4": "Ensure good lighting on your face, remove glasses or face coverings, look directly at the camera, keep a neutral expression, and ensure your full face is visible."
+      },
+      "account": {
+        "title": "Account & Login",
+        "q1": "How do I create an account?",
+        "a1": "Click on Login/Register and select the Register tab. Enter your full name, email address, and create a secure password. You will receive a confirmation once your account is created.",
+        "q2": "I forgot my password. How can I reset it?",
+        "a2": "On the login page, click Forgot Password. Enter your registered email address and follow the instructions sent to your email to reset your password.",
+        "q3": "Can I change my registered email address?",
+        "a3": "Currently, email address changes are not supported through self-service. Please contact our support team with valid identification to request an email change.",
+        "q4": "Is my account information secure?",
+        "a4": "Yes, all account information is encrypted and stored securely following government data protection guidelines. We use industry-standard security measures."
+      },
+      "status": {
+        "title": "Application Status",
+        "q1": "How can I check my application status?",
+        "a1": "After logging in, go to Dashboard and click on View Status or navigate directly to the Application Status page to see your verification status.",
+        "q2": "What do the different status messages mean?",
+        "a2": "Submitted means received, Under Automated Verification means AI checks in progress, Under Officer Review means human review pending, Approved means verification complete, Rejected means additional information may be required.",
+        "q3": "My application has been pending for a long time. What should I do?",
+        "a3": "Most applications are processed within 48 hours. If your application has been pending for more than 3 business days, please contact our support team with your application ID.",
+        "q4": "Can I withdraw or cancel my application?",
+        "a4": "Once submitted, applications cannot be withdrawn as they enter the verification queue. If you made an error, you may need to wait for rejection and then resubmit with correct information."
+      },
+      "security": {
+        "title": "Privacy & Security",
+        "q1": "How is my personal data protected?",
+        "a1": "Your data is protected using encryption both in transit and at rest. We follow the Digital Personal Data Protection Act, 2023 and IT Act, 2000 guidelines for data security.",
+        "q2": "Who has access to my documents and information?",
+        "a2": "Only authorized government officers involved in the verification process have access to your data. Access is logged and audited for security compliance.",
+        "q3": "How long is my data stored?",
+        "a3": "Verification data is stored as per government retention policies, typically for the validity period of the verification plus a mandatory retention period as per applicable laws.",
+        "q4": "Can I request deletion of my data?",
+        "a4": "Data deletion requests are handled as per the Digital Personal Data Protection Act. You can submit a request through the support channel."
+      }
+    },
+    
+    "guidelines": {
+      "title": "Important Guidelines",
+      "dos": "Do's",
+      "donts": "Don'ts",
+      "do1": "Use original, valid documents only",
+      "do2": "Ensure good lighting for face capture",
+      "do3": "Provide accurate personal information",
+      "do4": "Keep your application ID for reference",
+      "dont1": "Don't upload blurry or cropped documents",
+      "dont2": "Don't use expired identity documents",
+      "dont3": "Don't share your login credentials",
+      "dont4": "Don't submit false information"
+    },
+    
+    "contact": {
+      "title": "Contact Us",
+      "phone": "Toll-Free Helpline",
+      "email": "Email Support",
+      "hours": "Working Hours",
+      "timing": "Mon-Sat, 9AM-6PM"
+    },
+    
+    "cta": {
+      "message": "Still have questions? Learn more about our services or start your verification.",
+      "services": "Know About Services",
+      "startVerification": "Start Verification"
+    }
   }
 }

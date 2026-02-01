@@ -19,23 +19,21 @@ export function Footer() {
               {t('about.title')}
             </h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-foreground">{t('about.aboutUs')}</Link></li>
-              <li><Link href="#" className="hover:text-foreground">{t('about.mission')}</Link></li>
-              <li><Link href="#" className="hover:text-foreground">{t('about.team')}</Link></li>
-              <li><Link href="#" className="hover:text-foreground">{t('about.careers')}</Link></li>
+              <li><Link href="/about" className="hover:text-foreground">{t('about.aboutUs')}</Link></li>
+              <li><Link href="/mission" className="hover:text-foreground">{t('about.mission')}</Link></li>
+              <li><Link href="/team" className="hover:text-foreground">{t('about.team')}</Link></li>
             </ul>
           </div>
 
           {/* Services */}
           <div>
             <h3 className="font-semibold text-foreground mb-4">
-              {t('services.title')}
             </h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-foreground">{t('services.documentVerification')}</Link></li>
-              <li><Link href="#" className="hover:text-foreground">{t('services.biometricVerification')}</Link></li>
-              <li><Link href="#" className="hover:text-foreground">{t('services.identityValidation')}</Link></li>
-              <li><Link href="#" className="hover:text-foreground">{t('services.kycCompliance')}</Link></li>
+              <li><Link href="#" className="hover:text-foreground"></Link></li>
+              <li><Link href="#" className="hover:text-foreground"></Link></li>
+              <li><Link href="#" className="hover:text-foreground"></Link></li>
+              <li><Link href="#" className="hover:text-foreground"></Link></li>
             </ul>
           </div>
 
@@ -45,10 +43,8 @@ export function Footer() {
               {t('links.title')}
             </h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-foreground">{t('links.faq')}</Link></li>
-              <li><Link href="#" className="hover:text-foreground">{t('links.privacy')}</Link></li>
-              <li><Link href="#" className="hover:text-foreground">{t('links.terms')}</Link></li>
-              <li><Link href="#" className="hover:text-foreground">{t('links.support')}</Link></li>
+              <li><Link href="/help" className="hover:text-foreground">{t('links.faq')}</Link></li>
+              <li><Link href="/help" className="hover:text-foreground">{t('links.support')}</Link></li>
             </ul>
           </div>
 
@@ -86,7 +82,6 @@ export function Footer() {
               <div className="space-y-1">
                 <Link href="#" className="block hover:text-foreground">हिन्दी</Link>
                 <Link href="#" className="block hover:text-foreground">English</Link>
-                <Link href="#" className="block hover:text-foreground">বাংলা</Link>
               </div>
             </div>
 

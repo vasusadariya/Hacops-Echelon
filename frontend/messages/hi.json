@@ -194,4 +194,113 @@
     "successTitle": "अपना ईमेल जांचें",
     "successMessage": "यदि इस ईमेल के साथ कोई खाता मौजूद है, तो आपको पासवर्ड रीसेट निर्देश प्राप्त होंगे।"
   }
+  ,
+  "help": {
+    "title": "सहायता केंद्र",
+    "subtitle": "पहचान सत्यापन से संबंधित सामान्य प्रश्नों के उत्तर पाएं",
+    "searchPlaceholder": "सहायता खोजें...",
+    "searchResults": "\"{query}\" के लिए {count} परिणाम मिले",
+    "noResults": "\"{query}\" के लिए कोई परिणाम नहीं",
+    "noResultsMessage": "कोई मिलान प्रश्न नहीं मिला। अलग keywords आज़माएं।",
+    "clearSearch": "खोज साफ़ करें",
+    "faqTitle": "अक्सर पूछे जाने वाले प्रश्न",
+    "questions": "प्रश्न",
+    
+    "categories": {
+      "general": {
+        "title": "सामान्य प्रश्न",
+        "q1": "राष्ट्रीय पहचान सत्यापन पोर्टल क्या है?",
+        "a1": "राष्ट्रीय पहचान सत्यापन पोर्टल भारत सरकार की एक आधिकारिक पहल है जो नागरिकों को सुरक्षित डिजिटल पहचान सत्यापन सेवाएं प्रदान करती है। यह एक सरल ऑनलाइन प्रक्रिया के माध्यम से पेपरलेस दस्तावेज़ सत्यापन सक्षम करता है।",
+        "q2": "इस सेवा का उपयोग कौन कर सकता है?",
+        "a2": "वैध पहचान दस्तावेजों (आधार कार्ड और पैन कार्ड) वाला कोई भी भारतीय नागरिक इस सेवा का उपयोग कर सकता है। आपकी आयु 18 वर्ष या उससे अधिक होनी चाहिए और बायोमेट्रिक सत्यापन के लिए कैमरे वाला डिवाइस होना चाहिए।",
+        "q3": "क्या यह सेवा मुफ्त है?",
+        "a3": "हाँ, पहचान सत्यापन सेवा सभी नागरिकों के लिए पूर्णतः निःशुल्क है। इस प्रक्रिया से जुड़ा कोई छिपा शुल्क नहीं है।",
+        "q4": "सत्यापन प्रक्रिया में कितना समय लगता है?",
+        "a4": "अधिकांश आवेदन 24-48 घंटों में संसाधित हो जाते हैं। स्वचालित सत्यापन तुरंत होता है, जबकि अधिकारी समीक्षा में 1-2 कार्य दिवस लग सकते हैं।"
+      },
+      "documents": {
+        "title": "दस्तावेज़ आवश्यकताएं",
+        "q1": "सत्यापन के लिए कौन से दस्तावेज़ चाहिए?",
+        "a1": "आपको दो दस्तावेज़ चाहिए: (1) आधार कार्ड - सामने का भाग स्पष्ट दिखना चाहिए, और (2) पैन कार्ड - सामने का भाग स्पष्ट दिखना चाहिए। दोनों दस्तावेज़ मूल और वैध होने चाहिए।",
+        "q2": "दस्तावेज़ images किस format में होनी चाहिए?",
+        "a2": "दस्तावेज़ images JPG या PNG format में होनी चाहिए, अधिकतम file size 5MB। सुनिश्चित करें कि images स्पष्ट हों और सभी text पढ़ने योग्य हो।",
+        "q3": "क्या मैं दस्तावेजों की scanned copies उपयोग कर सकता हूं?",
+        "a3": "हाँ, आप scanned copies उपयोग कर सकते हैं बशर्ते वे स्पष्ट हों। Smartphone camera से ली गई photos भी स्वीकार्य हैं।",
+        "q4": "अगर मेरा दस्तावेज़ reject हो जाए तो?",
+        "a4": "यदि दस्तावेज़ reject होता है, तो आपको कारण बताने वाली notification मिलेगी। आम समस्याएं हैं: धुंधली images, आंशिक दृश्यता, या चमक। आप स्पष्ट image के साथ दोबारा submit कर सकते हैं।"
+      },
+      "biometric": {
+        "title": "बायोमेट्रिक सत्यापन",
+        "q1": "बायोमेट्रिक face verification क्या है?",
+        "a1": "बायोमेट्रिक face verification आपके चेहरे को कई angles (सामने, बाएं, दाएं, ऊपर) से capture करता है ताकि आपकी पहचान की पुष्टि हो सके और सुनिश्चित हो कि आप verification के दौरान शारीरिक रूप से उपस्थित हैं।",
+        "q2": "4 angles से face capture क्यों आवश्यक है?",
+        "a2": "Multi-angle capture अधिक सटीक verification प्रदान करता है और fraud रोकने में मदद करता है। यह सुनिश्चित करता है कि system विभिन्न perspectives से आपकी पहचान की पुष्टि कर सके।",
+        "q3": "अगर मेरा camera काम नहीं कर रहा तो?",
+        "a3": "Verification पूरा करने के लिए working camera आवश्यक है। यदि आपके device का camera काम नहीं कर रहा, तो smartphone या laptop जैसे दूसरे device का उपयोग करें।",
+        "q4": "सफल face capture के लिए tips?",
+        "a4": "चेहरे पर अच्छी रोशनी सुनिश्चित करें, चश्मा या face covering हटाएं, सीधे camera की ओर देखें, तटस्थ भाव रखें, और पूरा चेहरा दिखाई दे।"
+      },
+      "account": {
+        "title": "Account और Login",
+        "q1": "Account कैसे बनाएं?",
+        "a1": "Login/Register पर click करें और Register tab चुनें। अपना पूरा नाम, email address दर्ज करें और एक सुरक्षित password ���नाएं। Account बनने पर आपको confirmation मिलेगी।",
+        "q2": "Password भूल गया। कैसे reset करूं?",
+        "a2": "Login page पर Forgot Password click करें। अपना registered email address दर्ज करें और password reset करने के लिए email में भेजे गए निर्देशों का पालन करें।",
+        "q3": "क्या मैं registered email बदल सकता हूं?",
+        "a3": "वर्तमान में, self-service के माध्यम से email परिवर्तन समर्थित नहीं है। Email बदलने के अनुरोध के लिए वैध पहचान के साथ हमारी support team से संपर्क करें।",
+        "q4": "क्या मेरी account जानकारी सुरक्षित है?",
+        "a4": "हाँ, सभी account जानकारी सरकारी data protection guidelines के अनुसार encrypted और सुरक्षित रूप से stored है। हम industry-standard security उपाय उपयोग करते हैं।"
+      },
+      "status": {
+        "title": "आवेदन स्थिति",
+        "q1": "आवेदन status कैसे check करें?",
+        "a1": "Login करने के बाद, Dashboard पर जाएं और View Status पर click करें या सीधे Application Status page पर जाएं।",
+        "q2": "विभिन्न status messages का क्या मतलब है?",
+        "a2": "Submitted का मतलब प्राप्त, Under Automated Verification का मतलब AI checks जारी, Under Officer Review का मतलब मानव समीक्षा pending, Approved का मतलब verification complete, Rejected का मतलब अतिरिक्त जानकारी की आवश्यकता हो सकती है।",
+        "q3": "मेरा आवेदन लंबे समय से pending है। क्या करूं?",
+        "a3": "अधिकांश आवेदन 48 घंटों में संसाधित होते हैं। यदि 3 कार्य दिवसों से अधिक समय से pending है, तो अपने application ID के साथ support team से संपर्क करें।",
+        "q4": "क्या आवेदन वापस ले सकता हूं?",
+        "a4": "Submit होने के बाद, आवेदन वापस नहीं लिया जा सकता क्योंकि वे verification queue में प्रवेश करते हैं। यदि गलती हुई है, तो rejection का इंतजार करें और सही जानकारी के साथ दोबारा submit करें।"
+      },
+      "security": {
+        "title": "गोपनीयता और सुरक्षा",
+        "q1": "मेरा personal data कैसे protected है?",
+        "a1": "आपका data transit और rest दोनों में encryption का उपयोग करके protected है। हम Digital Personal Data Protection Act, 2023 और IT Act, 2000 guidelines का पालन करते हैं।",
+        "q2": "मेरे documents और जानकारी तक किसकी पहुंच है?",
+        "a2": "केवल verification process में शामिल अधिकृत सरकारी अधिकारियों को आपके data तक पहुंच है। Security compliance के लिए access logged और audited है।",
+        "q3": "मेरा data कितने समय तक stored रहता है?",
+        "a3": "Verification data सरकारी retention policies के अनुसार stored है, आमतौर पर verification की validity period plus applicable laws के अनुसार mandatory retention period के लिए।",
+        "q4": "क्या मैं data deletion का अनुरोध कर सकता हूं?",
+        "a4": "Data deletion requests Digital Personal Data Protection Act के अनुसार handle किए जाते हैं। आप support channel के माध्यम से request submit कर सकते हैं।"
+      }
+    },
+    
+    "guidelines": {
+      "title": "महत्वपूर्ण दिशानिर्देश",
+      "dos": "क्या करें",
+      "donts": "क्या न करें",
+      "do1": "केवल मूल, वैध दस्तावेज़ उपयोग करें",
+      "do2": "Face capture के लिए अच्छी रोशनी सुनिश्चित करें",
+      "do3": "सटीक व्यक्तिगत जानकारी प्रदान करें",
+      "do4": "Reference के लिए अपना application ID रखें",
+      "dont1": "धुंधले या cropped दस्तावेज़ upload न करें",
+      "dont2": "Expired पहचान दस्तावेज़ उपयोग न करें",
+      "dont3": "अपने login credentials share न करें",
+      "dont4": "गलत जानकारी submit न करें"
+    },
+    
+    "contact": {
+      "title": "संपर्क करें",
+      "phone": "Toll-Free Helpline",
+      "email": "Email Support",
+      "hours": "का���्य समय",
+      "timing": "सोम-शनि, सुबह 9 - शाम 6"
+    },
+    
+    "cta": {
+      "message": "अभी भी प्रश्न हैं? हमारी सेवाओं के बारे में और जानें या verification शुरू करें।",
+      "services": "सेवाओं के बारे में जानें",
+      "startVerification": "Verification शुरू करें"
+    }
+  }
 }
