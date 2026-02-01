@@ -2,152 +2,181 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { AlertTriangle, Search, RefreshCw, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import {
+  AlertTriangle, RefreshCw, Eye, CheckCircle, XCircle,
+  Loader2, Shield, Brain, ScanFace, FileCheck, Bot, Fingerprint
+} from 'lucide-react';
 
 export default function HighRiskApplicationsPage() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchApplications();
-  }, [page]);
+  }, []);
 
   const fetchApplications = async () => {
     setLoading(true);
+    setError('');
+    
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(
-        `/api/officer/applications?status=submitted,under_officer_review&risk=high&page=${page}&limit=10`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setApplications(data.applications || []);
-        setTotalPages(data.totalPages || 1);
-        setTotal(data.total || 0);
+      const res = await fetch('/api/officer/applications?risk=high&limit=50', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to fetch applications');
       }
+
+      const data = await res.json();
+      setApplications(data.applications || []);
+
     } catch (err) {
-      console.error('Failed to fetch:', err);
+      console.error('Fetch error:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredApps = applications.filter(app =>
-    app.fullName?.toLowerCase().includes(search.toLowerCase()) ||
-    app._id?.toLowerCase().includes(search.toLowerCase())
-  );
+  const getScoreColor = (score) => {
+    if (score >= 70) return 'text-green-600';
+    if (score >= 40) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const getStatusBadge = (status) => {
+    const config = {
+      submitted: { className: 'bg-blue-100 text-blue-700', label: 'Submitted' },
+      under_officer_review: { className: 'bg-yellow-100 text-yellow-700', label: 'Under Review' },
+      under_automated_verification: { className: 'bg-purple-100 text-purple-700', label: 'AI Processing' },
+      approved: { className: 'bg-green-100 text-green-700', label: 'Approved' },
+      rejected: { className: 'bg-red-100 text-red-700', label: 'Rejected' }
+    };
+    const c = config[status] || { className: 'bg-gray-100 text-gray-700', label: status };
+    return <Badge className={c.className}>{c.label}</Badge>;
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
             <AlertTriangle className="h-6 w-6 text-red-500" />
             High Risk Applications
           </h1>
-          <p className="text-gray-500 text-sm">{total} high-risk applications requiring attention</p>
+          <p className="text-gray-500">{applications.length} applications flagged as high risk</p>
         </div>
-        <Button variant="outline" onClick={fetchApplications} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+        <Button onClick={fetchApplications} disabled={loading} variant="outline">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
           Refresh
         </Button>
       </div>
 
-      <Card className="border shadow-sm">
-        <CardContent className="p-4">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {error && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <Card className="border shadow-sm">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-red-50 border-b">
-                <tr>
-                  <th className="text-left p-4 font-semibold text-gray-700">ID</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Name</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Risk Score</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Indicators</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Submitted</th>
-                  <th className="text-right p-4 font-semibold text-gray-700">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12">
-                      <RefreshCw className="h-8 w-8 animate-spin text-red-500 mx-auto mb-2" />
-                      <p className="text-gray-500">Loading...</p>
-                    </td>
-                  </tr>
-                ) : filteredApps.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-gray-500">
-                      No high-risk applications found
-                    </td>
-                  </tr>
-                ) : (
-                  filteredApps.map((app) => (
-                    <tr key={app._id} className="border-b hover:bg-red-50/50">
-                      <td className="p-4 font-mono text-xs">{app._id?.slice(-8).toUpperCase()}</td>
-                      <td className="p-4 font-medium">{app.fullName}</td>
-                      <td className="p-4">
-                        <Badge className="bg-red-100 text-red-700">
-                          {app.behaviorAnalysis?.riskScore || 0}/100
-                        </Badge>
-                      </td>
-                      <td className="p-4">
-                        <span className="text-lg">⚠️ ❗</span>
-                      </td>
-                      <td className="p-4 text-gray-500 text-sm">
-                        {app.submittedAt ? new Date(app.submittedAt).toLocaleDateString('en-IN') : '-'}
-                      </td>
-                      <td className="p-4 text-right">
-                        <Link href={`/officer/review/${app._id}`}>
-                          <Button size="sm" className="bg-red-500 hover:bg-red-600">
-                            <Eye className="h-4 w-4 mr-1" /> Review
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between p-4 border-t bg-gray-50">
-              <p className="text-sm text-gray-600">Page {page} of {totalPages}</p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+      {/* Loading */}
+      {loading && (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Loader2 className="h-10 w-10 animate-spin text-red-500 mx-auto mb-4" />
+            <p>Loading high risk applications...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty */}
+      {!loading && applications.length === 0 && (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Shield className="h-16 w-16 text-green-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold">No High Risk Applications</h3>
+            <p className="text-gray-500 mt-2">All applications are within acceptable risk levels.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Applications */}
+      {!loading && applications.map((app) => {
+        const ai = app.aiVerification || {};
+        const aiScore = ai.overallScore || 0;
+        const botLikelihood = app.behaviorSummary?.botLikelihood || 0;
+
+        return (
+          <Card key={app._id} className="border-2 border-red-200 bg-red-50/30 hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                    {app.fullName?.charAt(0) || '?'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-lg">{app.fullName}</h3>
+                      <code className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                        #{app._id?.slice(-6).toUpperCase()}
+                      </code>
+                      {getStatusBadge(app.status)}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {app.city}, {app.state} • {app.submittedAt ? new Date(app.submittedAt).toLocaleDateString() : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Risk Indicators */}
+                <div className="flex gap-3 flex-wrap">
+                  <div className={`p-2 rounded border text-center min-w-[80px] ${aiScore >= 70 ? 'bg-green-50 border-green-200' : aiScore >= 40 ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'}`}>
+                    <div className="text-xs text-gray-500">AI Score</div>
+                    <div className={`text-lg font-bold ${getScoreColor(aiScore)}`}>{aiScore}</div>
+                  </div>
+                  <div className={`p-2 rounded border text-center min-w-[80px] ${botLikelihood < 30 ? 'bg-green-50 border-green-200' : botLikelihood < 60 ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'}`}>
+                    <div className="text-xs text-gray-500">Bot Risk</div>
+                    <div className={`text-lg font-bold ${botLikelihood < 30 ? 'text-green-600' : botLikelihood < 60 ? 'text-yellow-600' : 'text-red-600'}`}>{botLikelihood}%</div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <Link href={`/officer/review/${app._id}`}>
+                  <Button className="bg-red-600 hover:bg-red-700">
+                    <Eye className="h-4 w-4 mr-2" /> Review
+                  </Button>
+                </Link>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+              {/* Issues Preview */}
+              {ai.issues?.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-red-200">
+                  <p className="text-sm font-medium text-red-700 mb-2">⚠️ Issues Detected:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ai.issues.slice(0, 3).map((issue, i) => (
+                      <Badge key={i} variant="destructive" className="text-xs">
+                        {issue}
+                      </Badge>
+                    ))}
+                    {ai.issues.length > 3 && (
+                      <Badge variant="outline" className="text-xs">+{ai.issues.length - 3} more</Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

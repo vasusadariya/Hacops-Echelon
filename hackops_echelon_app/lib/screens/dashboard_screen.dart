@@ -2,191 +2,70 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/verification_provider.dart';
+import '../widgets/app_drawer.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.isOfficer) {
+        Navigator.pushReplacementNamed(context, '/officer');
+        return;
+      }
+      context.read<VerificationProvider>().fetchStatus();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final user = authProvider.user;
-
-    if (authProvider.isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (user == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushNamedAndRemoveUntil(context, '/auth', (route) => false);
-      });
-      return const SizedBox.shrink();
-    }
+    final auth = context.watch<AuthProvider>();
+    final verification = context.watch<VerificationProvider>();
 
     return Scaffold(
-      backgroundColor: AppTheme.muted.withOpacity(0.3),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              auth.refreshUser();
+              verification.fetchStatus(forceRefresh: true);
+            },
+          ),
+        ],
+      ),
+      drawer: const AppDrawer(),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await auth.refreshUser();
+          await verification.fetchStatus(forceRefresh: true);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'User Dashboard',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'National Identity Verification Portal',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      authProvider.logout();
-                      Navigator.pushNamedAndRemoveUntil(
-                          context, '/', (route) => false);
-                    },
-                    icon: const Icon(Icons.logout, size: 18),
-                    label: const Text('LOGOUT'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Profile Card
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppTheme.card,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.person_outline,
-                            color: AppTheme.primary, size: 24),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Profile Information',
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Registered account details',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 24),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isWide = constraints.maxWidth > 500;
-                        return Wrap(
-                          spacing: 32,
-                          runSpacing: 24,
-                          children: [
-                            _ProfileField(
-                              label: 'Full Name',
-                              value: user['name'] ?? '',
-                              width: isWide ? (constraints.maxWidth - 32) / 2 : constraints.maxWidth,
-                            ),
-                            _ProfileField(
-                              label: 'Email Address',
-                              value: user['email'] ?? '',
-                              width: isWide ? (constraints.maxWidth - 32) / 2 : constraints.maxWidth,
-                            ),
-                            _ProfileField(
-                              label: 'User Role',
-                              value: (user['role'] ?? 'user').toString().toUpperCase(),
-                              width: isWide ? (constraints.maxWidth - 32) / 2 : constraints.maxWidth,
-                            ),
-                            _ProfileField(
-                              label: 'Member Since',
-                              value: _formatDate(user['createdAt']),
-                              width: isWide ? (constraints.maxWidth - 32) / 2 : constraints.maxWidth,
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
+              _buildWelcomeCard(auth),
+              const SizedBox(height: 16),
+              _buildVerificationStatusCard(verification),
               const SizedBox(height: 24),
-
-              // Quick Actions
               Text(
                 'Quick Actions',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: 16),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
-                  return GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 1.5,
-                    children: [
-                      _ActionCard(
-                        icon: Icons.description_outlined,
-                        title: 'Start Verification',
-                        color: AppTheme.primary,
-                        onTap: () {},
-                      ),
-                      _ActionCard(
-                        icon: Icons.history,
-                        title: 'View History',
-                        color: AppTheme.secondary,
-                        onTap: () {},
-                      ),
-                      _ActionCard(
-                        icon: Icons.settings_outlined,
-                        title: 'Settings',
-                        color: AppTheme.mutedForeground,
-                        onTap: () {},
-                      ),
-                    ],
-                  );
-                },
-              ),
-
-              const Spacer(),
-
-              // Back to Home
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, '/'),
-                  icon: const Icon(Icons.home_outlined),
-                  label: const Text('Back to Home'),
-                ),
-              ),
+              const SizedBox(height: 12),
+              _buildActionCards(verification),
             ],
           ),
         ),
@@ -194,53 +73,215 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  String _formatDate(dynamic date) {
-    if (date == null) return 'N/A';
-    try {
-      final dateTime = DateTime.parse(date.toString());
-      return '${_monthName(dateTime.month)} ${dateTime.day}, ${dateTime.year}';
-    } catch (e) {
-      return 'N/A';
-    }
-  }
-
-  String _monthName(int month) {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    return months[month - 1];
-  }
-}
-
-class _ProfileField extends StatelessWidget {
-  final String label;
-  final String value;
-  final double width;
-
-  const _ProfileField({
-    required this.label,
-    required this.value,
-    required this.width,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w500,
+  Widget _buildWelcomeCard(AuthProvider auth) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 30,
+              backgroundColor: AppTheme.primary,
+              child: Text(
+                auth.userName.isNotEmpty ? auth.userName[0].toUpperCase() : 'U',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome, ${auth.userName}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    auth.userEmail,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: AppTheme.destructive),
+              onPressed: () => _showLogoutDialog(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVerificationStatusCard(VerificationProvider verification) {
+    final status = verification.currentStatus;
+    String statusText;
+    Color statusColor;
+    IconData statusIcon;
+
+    if (verification.isApproved) {
+      statusText = 'Verified';
+      statusColor = AppTheme.success;
+      statusIcon = Icons.verified;
+    } else if (verification.isVerificationInProgress) {
+      statusText = 'In Progress';
+      statusColor = AppTheme.warning;
+      statusIcon = Icons.hourglass_empty;
+    } else if (verification.isRejected) {
+      statusText = 'Rejected';
+      statusColor = AppTheme.destructive;
+      statusIcon = Icons.error;
+    } else {
+      statusText = 'Not Started';
+      statusColor = AppTheme.mutedForeground;
+      statusIcon = Icons.pending;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(statusIcon, color: statusColor, size: 32),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Verification Status',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    statusText,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pushNamed(context, '/verification/status'),
+              child: const Text('Details'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionCards(VerificationProvider verification) {
+    return Column(
+      children: [
+        // Verification Action - Dynamic based on status
+        _buildVerificationActionCard(verification),
+        const SizedBox(height: 12),
+
+        // Status Card
+        _ActionCard(
+          icon: Icons.track_changes,
+          title: 'Application Status',
+          subtitle: 'Track your verification progress',
+          buttonText: 'Check Status',
+          onPressed: () => Navigator.pushNamed(context, '/verification/status'),
+        ),
+        const SizedBox(height: 12),
+
+        // Help Card
+        _ActionCard(
+          icon: Icons.help_outline,
+          title: 'Need Help?',
+          subtitle: 'Get support or browse FAQs',
+          buttonText: 'Get Help',
+          onPressed: () => Navigator.pushNamed(context, '/help'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVerificationActionCard(VerificationProvider verification) {
+    if (verification.isApproved) {
+      return _ActionCard(
+        icon: Icons.verified,
+        iconColor: AppTheme.success,
+        title: 'Identity Verified',
+        subtitle: 'Your verification is complete',
+        buttonText: 'View Certificate',
+        buttonColor: AppTheme.success,
+        onPressed: () => Navigator.pushNamed(context, '/verification/status'),
+      );
+    }
+
+    if (verification.isVerificationInProgress) {
+      return _ActionCard(
+        icon: Icons.hourglass_empty,
+        iconColor: AppTheme.warning,
+        title: 'Verification In Progress',
+        subtitle: 'Please wait while we verify your documents',
+        buttonText: 'Track Progress',
+        buttonColor: AppTheme.warning,
+        onPressed: () => Navigator.pushNamed(context, '/verification/status'),
+      );
+    }
+
+    if (verification.isRejected) {
+      return _ActionCard(
+        icon: Icons.refresh,
+        iconColor: AppTheme.destructive,
+        title: 'Verification Rejected',
+        subtitle: 'Please review and resubmit your application',
+        buttonText: 'Resubmit',
+        buttonColor: AppTheme.primary,
+        onPressed: () => Navigator.pushNamed(context, '/verification/form'),
+      );
+    }
+
+    return _ActionCard(
+      icon: Icons.verified_user,
+      title: 'Identity Verification',
+      subtitle: 'Complete your verification to access all services',
+      buttonText: 'Start Verification',
+      onPressed: () => Navigator.pushNamed(context, '/verification/form'),
+    );
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await context.read<AuthProvider>().logout();
+              context.read<VerificationProvider>().reset();
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.destructive),
+            child: const Text('Logout'),
           ),
         ],
       ),
@@ -248,62 +289,66 @@ class _ProfileField extends StatelessWidget {
   }
 }
 
-class _ActionCard extends StatefulWidget {
+class _ActionCard extends StatelessWidget {
   final IconData icon;
+  final Color? iconColor;
   final String title;
-  final Color color;
-  final VoidCallback onTap;
+  final String subtitle;
+  final String buttonText;
+  final Color? buttonColor;
+  final VoidCallback onPressed;
 
   const _ActionCard({
     required this.icon,
+    this.iconColor,
     required this.title,
-    required this.color,
-    required this.onTap,
+    required this.subtitle,
+    required this.buttonText,
+    this.buttonColor,
+    required this.onPressed,
   });
 
   @override
-  State<_ActionCard> createState() => _ActionCardState();
-}
-
-class _ActionCardState extends State<_ActionCard> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _isHovered ? AppTheme.accent : AppTheme.card,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: widget.color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(widget.icon, color: widget.color),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: (iconColor ?? AppTheme.primary).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(height: 12),
-              Text(
-                widget.title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                textAlign: TextAlign.center,
+              child: Icon(icon, color: iconColor ?? AppTheme.primary),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: onPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: buttonColor ?? AppTheme.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              child: Text(buttonText, style: const TextStyle(fontSize: 12)),
+            ),
+          ],
         ),
       ),
     );

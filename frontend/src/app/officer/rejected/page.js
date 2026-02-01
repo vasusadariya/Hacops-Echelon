@@ -5,111 +5,134 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { XCircle, Search, RefreshCw, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  XCircle, RefreshCw, Eye, Loader2, AlertTriangle
+} from 'lucide-react';
 
 export default function RejectedApplicationsPage() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [error, setError] = useState('');
 
-  useEffect(() => { fetchApplications(); }, [page]);
+  useEffect(() => {
+    fetchApplications();
+  }, []);
 
   const fetchApplications = async () => {
     setLoading(true);
+    setError('');
+    
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/officer/applications?status=rejected&page=${page}&limit=10`, {
+      const res = await fetch('/api/officer/applications?status=rejected&limit=50', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        setApplications(data.applications || []);
-        setTotalPages(data.totalPages || 1);
-        setTotal(data.total || 0);
-      }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
 
-  const filteredApps = applications.filter(app =>
-    app.fullName?.toLowerCase().includes(search.toLowerCase()) || app._id?.includes(search)
-  );
+      if (!res.ok) {
+        throw new Error('Failed to fetch applications');
+      }
+
+      const data = await res.json();
+      setApplications(data.applications || []);
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
             <XCircle className="h-6 w-6 text-red-500" />
             Rejected Applications
           </h1>
-          <p className="text-gray-500 text-sm">{total} rejected applications</p>
+          <p className="text-gray-500">{applications.length} rejected applications</p>
         </div>
-        <Button variant="outline" onClick={fetchApplications} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
+        <Button onClick={fetchApplications} disabled={loading} variant="outline">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          Refresh
         </Button>
       </div>
 
-      <Card className="border shadow-sm">
-        <CardContent className="p-4">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
-          </div>
-        </CardContent>
-      </Card>
+      {error && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <Card className="border shadow-sm">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-red-50 border-b">
-                <tr>
-                  <th className="text-left p-4 font-semibold">ID</th>
-                  <th className="text-left p-4 font-semibold">Name</th>
-                  <th className="text-left p-4 font-semibold">Status</th>
-                  <th className="text-left p-4 font-semibold">Reason</th>
-                  <th className="text-left p-4 font-semibold">Rejected On</th>
-                  <th className="text-right p-4 font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={6} className="text-center py-12"><RefreshCw className="h-8 w-8 animate-spin text-gray-500 mx-auto" /></td></tr>
-                ) : filteredApps.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-12 text-gray-500">No rejected applications</td></tr>
-                ) : filteredApps.map((app) => (
-                  <tr key={app._id} className="border-b hover:bg-red-50/30">
-                    <td className="p-4 font-mono text-xs">{app._id?.slice(-8).toUpperCase()}</td>
-                    <td className="p-4 font-medium">{app.fullName}</td>
-                    <td className="p-4"><Badge className="bg-red-100 text-red-700">Rejected</Badge></td>
-                    <td className="p-4 text-gray-600 text-sm max-w-xs truncate">{app.rejectionReason || '-'}</td>
-                    <td className="p-4 text-gray-500 text-sm">{app.reviewedAt ? new Date(app.reviewedAt).toLocaleDateString('en-IN') : '-'}</td>
-                    <td className="p-4 text-right">
-                      <Link href={`/officer/review/${app._id}`}>
-                        <Button size="sm" variant="outline"><Eye className="h-4 w-4 mr-1" /> View</Button>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between p-4 border-t bg-gray-50">
-              <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p-1))} disabled={page===1}><ChevronLeft className="h-4 w-4" /></Button>
-                <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page===totalPages}><ChevronRight className="h-4 w-4" /></Button>
+      {loading && (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Loader2 className="h-10 w-10 animate-spin text-red-500 mx-auto mb-4" />
+            <p>Loading rejected applications...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && applications.length === 0 && (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <XCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold">No Rejected Applications</h3>
+            <p className="text-gray-500 mt-2">No applications have been rejected yet.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && applications.map((app) => {
+        const ai = app.aiVerification || {};
+        const aiScore = ai.overallScore || 0;
+
+        return (
+          <Card key={app._id} className="border-red-200 bg-red-50/30 hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                    <XCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-lg">{app.fullName}</h3>
+                      <code className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                        #{app._id?.slice(-6).toUpperCase()}
+                      </code>
+                      <Badge className="bg-red-100 text-red-700">Rejected</Badge>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {app.city}, {app.state} • Rejected: {app.reviewedAt ? new Date(app.reviewedAt).toLocaleDateString() : 'N/A'}
+                    </p>
+                    {app.rejectionReason && (
+                      <p className="text-sm text-red-600 mt-2 bg-red-50 p-2 rounded border border-red-200">
+                        <strong>Reason:</strong> {app.rejectionReason}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 items-center">
+                  <div className="p-2 rounded border bg-white text-center min-w-[80px]">
+                    <div className="text-xs text-gray-500">AI Score</div>
+                    <div className="text-lg font-bold text-red-600">{aiScore}</div>
+                  </div>
+                  <Link href={`/officer/review/${app._id}`}>
+                    <Button variant="outline">
+                      <Eye className="h-4 w-4 mr-2" /> View
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

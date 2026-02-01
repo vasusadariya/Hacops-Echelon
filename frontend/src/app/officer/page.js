@@ -5,18 +5,21 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import {
   Clock,
   CheckCircle,
   XCircle,
   AlertTriangle,
   FileSearch,
-  Activity,
   ArrowRight,
   RefreshCw,
   Eye,
   Cpu,
-  Users
+  Brain,
+  Shield,
+  ScanFace,
+  FileCheck
 } from 'lucide-react';
 
 export default function OfficerDashboard() {
@@ -45,7 +48,6 @@ export default function OfficerDashboard() {
         fetch('/api/officer/stats', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        // Only fetch applications with status 'under_officer_review' - these passed AI verification
         fetch('/api/officer/applications?status=under_officer_review&limit=10&sort=newest', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
@@ -72,24 +74,49 @@ export default function OfficerDashboard() {
     { title: 'Rejected', value: stats.rejected, icon: XCircle, color: 'bg-gray-500', bgColor: 'bg-gray-50', link: '/officer/rejected' },
   ];
 
-  const getRiskBadge = (score) => {
-    if (score >= 70) return <Badge className="bg-red-500 text-white text-xs">High ({score})</Badge>;
-    if (score >= 40) return <Badge className="bg-yellow-500 text-white text-xs">Medium ({score})</Badge>;
-    return <Badge className="bg-green-500 text-white text-xs">Low ({score})</Badge>;
+  const getAIScoreBadge = (app) => {
+    const aiScore = app.aiVerification?.overallScore;
+    if (aiScore === undefined || aiScore === null) {
+      return <Badge className="bg-gray-100 text-gray-600 text-xs">No AI Data</Badge>;
+    }
+    
+    if (aiScore >= 70) return <Badge className="bg-green-500 text-white text-xs">AI: {aiScore}/100</Badge>;
+    if (aiScore >= 40) return <Badge className="bg-yellow-500 text-white text-xs">AI: {aiScore}/100</Badge>;
+    return <Badge className="bg-red-500 text-white text-xs">AI: {aiScore}/100</Badge>;
+  };
+
+  const getBehaviorBadge = (app) => {
+    const botLikelihood = app.behaviorSummary?.botLikelihood || app.behaviorAnalysis?.riskScore || 0;
+    
+    if (botLikelihood < 30) return <Badge className="bg-green-100 text-green-700 text-xs">Human ✓</Badge>;
+    if (botLikelihood < 60) return <Badge className="bg-yellow-100 text-yellow-700 text-xs">Check ({botLikelihood}%)</Badge>;
+    return <Badge className="bg-red-100 text-red-700 text-xs">Bot? ({botLikelihood}%)</Badge>;
   };
 
   const getAIFlags = (app) => {
     const flags = [];
-    const analysis = app.aiAnalysis || {};
+    const aiVerification = app.aiVerification || {};
     
-    if (analysis.documentAnomaly) flags.push({ icon: '📄', label: 'Document Issue' });
-    if (analysis.faceMismatch) flags.push({ icon: '👤', label: 'Face Mismatch' });
-    if (analysis.faceReuse) flags.push({ icon: '🚨', label: 'Face Reuse' });
-    if (app.behaviorAnalysis?.suspiciousActivity) flags.push({ icon: '⚠️', label: 'Suspicious' });
+    // Face verification
+    if (aiVerification.faceVerified === false) {
+      flags.push({ icon: '👤', label: 'Face Issue', color: 'text-red-600' });
+    }
     
-    // If AI flagged it but no specific flags, show general flag
-    if (flags.length === 0 && app.behaviorAnalysis?.riskScore >= 40) {
-      flags.push({ icon: '⚠️', label: 'Review Needed' });
+    // Document verification
+    if (aiVerification.documentsVerified === false) {
+      flags.push({ icon: '📄', label: 'Doc Issue', color: 'text-orange-600' });
+    }
+    
+    // AI decision
+    if (aiVerification.decision === 'REJECTED') {
+      flags.push({ icon: '🚨', label: 'AI Rejected', color: 'text-red-600' });
+    } else if (aiVerification.decision === 'REVIEW_REQUIRED') {
+      flags.push({ icon: '⚠️', label: 'Review Needed', color: 'text-yellow-600' });
+    }
+    
+    // Behavioral flags
+    if (app.behaviorSummary?.botLikelihood >= 50) {
+      flags.push({ icon: '🤖', label: 'Bot Suspected', color: 'text-red-600' });
     }
     
     return flags;
@@ -169,7 +196,7 @@ export default function OfficerDashboard() {
           </CardContent>
         </Card>
 
-        {/* Pending Applications - These are from AI and need officer review */}
+        {/* Pending Applications */}
         <Card className="lg:col-span-3 border shadow-sm">
           <CardHeader className="bg-gray-50 border-b py-4 flex-row items-center justify-between">
             <div>
@@ -187,8 +214,9 @@ export default function OfficerDashboard() {
                   <tr>
                     <th className="text-left p-3 font-semibold text-gray-600">ID</th>
                     <th className="text-left p-3 font-semibold text-gray-600">Applicant</th>
-                    <th className="text-left p-3 font-semibold text-gray-600">Risk Score</th>
-                    <th className="text-left p-3 font-semibold text-gray-600">AI Flags</th>
+                    <th className="text-left p-3 font-semibold text-gray-600">AI Score</th>
+                    <th className="text-left p-3 font-semibold text-gray-600">Behavior</th>
+                    <th className="text-left p-3 font-semibold text-gray-600">Flags</th>
                     <th className="text-left p-3 font-semibold text-gray-600">Submitted</th>
                     <th className="text-right p-3 font-semibold text-gray-600">Action</th>
                   </tr>
@@ -196,14 +224,14 @@ export default function OfficerDashboard() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-8">
+                      <td colSpan={7} className="text-center py-8">
                         <RefreshCw className="h-6 w-6 animate-spin text-orange-500 mx-auto mb-2" />
                         <p className="text-gray-500 text-sm">Loading...</p>
                       </td>
                     </tr>
                   ) : pendingApplications.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-12">
+                      <td colSpan={7} className="text-center py-12">
                         <CheckCircle className="h-10 w-10 text-green-300 mx-auto mb-3" />
                         <p className="text-gray-500 font-medium">All caught up!</p>
                         <p className="text-gray-400 text-xs mt-1">No applications pending your review</p>
@@ -225,17 +253,21 @@ export default function OfficerDashboard() {
                               <p className="text-xs text-gray-500">{app.city}, {app.state}</p>
                             </div>
                           </td>
-                          <td className="p-3">{getRiskBadge(app.behaviorAnalysis?.riskScore || 0)}</td>
+                          <td className="p-3">{getAIScoreBadge(app)}</td>
+                          <td className="p-3">{getBehaviorBadge(app)}</td>
                           <td className="p-3">
                             {aiFlags.length === 0 ? (
                               <span className="text-green-600 text-sm flex items-center gap-1">
                                 <CheckCircle className="h-4 w-4" /> Clear
                               </span>
                             ) : (
-                              <div className="flex gap-1">
-                                {aiFlags.map((f, i) => (
-                                  <span key={i} className="text-lg cursor-help" title={f.label}>{f.icon}</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {aiFlags.slice(0, 3).map((f, i) => (
+                                  <span key={i} className={`text-lg cursor-help ${f.color}`} title={f.label}>{f.icon}</span>
                                 ))}
+                                {aiFlags.length > 3 && (
+                                  <span className="text-xs text-gray-500">+{aiFlags.length - 3}</span>
+                                )}
                               </div>
                             )}
                           </td>
@@ -263,31 +295,35 @@ export default function OfficerDashboard() {
       {/* Legend */}
       <Card className="border shadow-sm">
         <CardContent className="p-4">
-          <p className="text-sm font-semibold text-gray-700 mb-3">Risk Score & AI Flags:</p>
+          <p className="text-sm font-semibold text-gray-700 mb-3">AI Verification Scores & Flags:</p>
           <div className="flex flex-wrap gap-6 text-sm">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded bg-green-500"></div>
-              <span>Low Risk (0-39)</span>
+              <span>AI Score 70-100 (Low Risk)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded bg-yellow-500"></div>
-              <span>Medium Risk (40-69)</span>
+              <span>AI Score 40-69 (Medium Risk)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded bg-red-500"></div>
-              <span>High Risk (70-100)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span>🚨</span>
-              <span>Face Reuse Detected</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span>📄</span>
-              <span>Document Anomaly</span>
+              <span>AI Score 0-39 (High Risk)</span>
             </div>
             <div className="flex items-center gap-2">
               <span>👤</span>
-              <span>Face Mismatch</span>
+              <span>Face Verification Issue</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>📄</span>
+              <span>Document Issue</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>🤖</span>
+              <span>Bot Suspected</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>🚨</span>
+              <span>AI Rejected</span>
             </div>
           </div>
         </CardContent>

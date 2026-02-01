@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
-import '../widgets/custom_app_bar.dart';
+import '../providers/auth_provider.dart';
+import '../providers/verification_provider.dart';
 
 class VerificationScreen extends StatefulWidget {
   const VerificationScreen({super.key});
@@ -10,501 +12,367 @@ class VerificationScreen extends StatefulWidget {
 }
 
 class _VerificationScreenState extends State<VerificationScreen> {
-  int _currentStep = 0;
-  final _formKey = GlobalKey<FormState>();
-
-  // Form controllers
-  final _fullNameController = TextEditingController();
-  final _aadharController = TextEditingController();
-  final _panController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _phoneController = TextEditingController();
-
   @override
-  void dispose() {
-    _fullNameController.dispose();
-    _aadharController.dispose();
-    _panController.dispose();
-    _addressController.dispose();
-    _phoneController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (!auth.isLoggedIn) {
+        Navigator.pushReplacementNamed(context, '/auth');
+        return;
+      }
+      if (auth.isOfficer) {
+        Navigator.pushReplacementNamed(context, '/officer');
+        return;
+      }
+      context.read<VerificationProvider>().fetchStatus();
+    });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CustomAppBar(showBackButton: true),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 800),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Identity Verification',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Complete the verification process by providing the required information.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.mutedForeground,
-                      ),
-                ),
-                const SizedBox(height: 32),
-                _buildStepper(),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  void _navigateToForm() {
+    final verification = context.read<VerificationProvider>();
+    
+    // Double-check before navigation
+    if (verification.isApproved) {
+      _showBlockedSnackbar('Your identity is already verified.');
+      Navigator.pushNamed(context, '/verification/status');
+      return;
+    }
+    
+    if (verification.isVerificationInProgress) {
+      _showBlockedSnackbar('Verification is already in progress.');
+      Navigator.pushNamed(context, '/verification/status');
+      return;
+    }
+    
+    // Safe to navigate
+    Navigator.pushNamed(context, '/verification/form');
   }
 
-  Widget _buildStepper() {
-    return Stepper(
-      currentStep: _currentStep,
-      onStepContinue: () {
-        if (_currentStep < 3) {
-          setState(() => _currentStep++);
-        } else {
-          _submitVerification();
-        }
-      },
-      onStepCancel: () {
-        if (_currentStep > 0) {
-          setState(() => _currentStep--);
-        }
-      },
-      controlsBuilder: (context, details) {
-        return Padding(
-          padding: const EdgeInsets.only(top: 24),
-          child: Row(
-            children: [
-              ElevatedButton(
-                onPressed: details.onStepContinue,
-                child: Text(_currentStep == 3 ? 'SUBMIT' : 'CONTINUE'),
-              ),
-              if (_currentStep > 0) ...[
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: details.onStepCancel,
-                  child: const Text('BACK'),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-      steps: [
-        Step(
-          title: const Text('Personal Details'),
-          subtitle: const Text('Basic information'),
-          isActive: _currentStep >= 0,
-          state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-          content: _buildPersonalDetailsForm(),
-        ),
-        Step(
-          title: const Text('Document Upload'),
-          subtitle: const Text('Identity documents'),
-          isActive: _currentStep >= 1,
-          state: _currentStep > 1 ? StepState.complete : StepState.indexed,
-          content: _buildDocumentUploadForm(),
-        ),
-        Step(
-          title: const Text('Biometric Verification'),
-          subtitle: const Text('Face recognition'),
-          isActive: _currentStep >= 2,
-          state: _currentStep > 2 ? StepState.complete : StepState.indexed,
-          content: _buildBiometricForm(),
-        ),
-        Step(
-          title: const Text('Review & Submit'),
-          subtitle: const Text('Confirm details'),
-          isActive: _currentStep >= 3,
-          state: StepState.indexed,
-          content: _buildReviewForm(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPersonalDetailsForm() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        children: [
-          _buildFormField(
-            controller: _fullNameController,
-            label: 'Full Name (as per Aadhaar)',
-            hint: 'Enter your full name',
-            icon: Icons.person_outline,
-          ),
-          const SizedBox(height: 16),
-          _buildFormField(
-            controller: _aadharController,
-            label: 'Aadhaar Number',
-            hint: 'XXXX XXXX XXXX',
-            icon: Icons.credit_card,
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 16),
-          _buildFormField(
-            controller: _panController,
-            label: 'PAN Number',
-            hint: 'ABCDE1234F',
-            icon: Icons.badge_outlined,
-          ),
-          const SizedBox(height: 16),
-          _buildFormField(
-            controller: _phoneController,
-            label: 'Mobile Number',
-            hint: '+91 XXXXX XXXXX',
-            icon: Icons.phone_outlined,
-            keyboardType: TextInputType.phone,
-          ),
-          const SizedBox(height: 16),
-          _buildFormField(
-            controller: _addressController,
-            label: 'Address',
-            hint: 'Enter your complete address',
-            icon: Icons.location_on_outlined,
-            maxLines: 3,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDocumentUploadForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Please upload clear images of the following documents:',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 24),
-        _DocumentUploadCard(
-          title: 'Aadhaar Card',
-          subtitle: 'Front and back side',
-          icon: Icons.credit_card,
-        ),
-        const SizedBox(height: 16),
-        _DocumentUploadCard(
-          title: 'PAN Card',
-          subtitle: 'Front side only',
-          icon: Icons.badge_outlined,
-        ),
-        const SizedBox(height: 16),
-        _DocumentUploadCard(
-          title: 'Passport Photo',
-          subtitle: 'Recent photograph',
-          icon: Icons.photo_camera_outlined,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBiometricForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Complete biometric verification by taking a live photo:',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 24),
-        Container(
-          width: double.infinity,
-          height: 300,
-          decoration: BoxDecoration(
-            color: AppTheme.muted,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppTheme.accent,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.face,
-                  size: 64,
-                  color: AppTheme.primary,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Position your face within the frame',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('CAPTURE PHOTO'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.accent.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.secondary.withOpacity(0.3)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.info_outline, color: AppTheme.secondary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Ensure good lighting and remove any accessories covering your face.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildReviewForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Please review your information before submitting:',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppTheme.card,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: Column(
-            children: [
-              _ReviewItem(label: 'Full Name', value: _fullNameController.text.isEmpty ? 'Not provided' : _fullNameController.text),
-              _ReviewItem(label: 'Aadhaar Number', value: _aadharController.text.isEmpty ? 'Not provided' : _aadharController.text),
-              _ReviewItem(label: 'PAN Number', value: _panController.text.isEmpty ? 'Not provided' : _panController.text),
-              _ReviewItem(label: 'Mobile Number', value: _phoneController.text.isEmpty ? 'Not provided' : _phoneController.text),
-              _ReviewItem(label: 'Address', value: _addressController.text.isEmpty ? 'Not provided' : _addressController.text),
-              _ReviewItem(label: 'Documents', value: 'Uploaded'),
-              _ReviewItem(label: 'Biometric', value: 'Captured', isLast: true),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
-          ),
-          child: Row(
-            children: [
-              Checkbox(
-                value: true,
-                onChanged: (value) {},
-                activeColor: AppTheme.primary,
-              ),
-              Expanded(
-                child: Text(
-                  'I confirm that all the information provided is accurate and complete.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFormField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    int maxLines = 1,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          maxLines: maxLines,
-          decoration: InputDecoration(
-            hintText: hint,
-            prefixIcon: Icon(icon, size: 20),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _submitVerification() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        title: Row(
+  void _showBlockedSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
           children: [
-            Icon(Icons.check_circle, color: AppTheme.secondary),
-            const SizedBox(width: 12),
-            const Text('Verification Submitted'),
+            const Icon(Icons.info_outline, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
           ],
         ),
-        content: const Text(
-          'Your verification request has been submitted successfully. You will receive a confirmation within 2-3 business days.',
-        ),
+        backgroundColor: AppTheme.warning,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final verification = context.watch<VerificationProvider>();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Identity Verification'),
         actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('OK'),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => verification.fetchStatus(forceRefresh: true),
+          ),
+        ],
+      ),
+      body: verification.isLoading && !verification.hasFetched
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: () => verification.fetchStatus(forceRefresh: true),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    _buildStatusBanner(verification),
+                    const SizedBox(height: 24),
+                    _buildDocumentsSection(),
+                    const SizedBox(height: 24),
+                    _buildStepsSection(),
+                    const SizedBox(height: 32),
+                    _buildCTAButton(verification),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildStatusBanner(VerificationProvider verification) {
+    IconData icon;
+    String title;
+    String subtitle;
+    Color color;
+
+    if (verification.isApproved) {
+      icon = Icons.check_circle;
+      title = 'Verification Complete';
+      subtitle = 'Your identity has been verified successfully';
+      color = AppTheme.success;
+    } else if (verification.isVerificationInProgress) {
+      icon = Icons.hourglass_empty;
+      title = 'Verification In Progress';
+      subtitle = _getProgressSubtitle(verification.currentStatus);
+      color = AppTheme.warning;
+    } else if (verification.isRejected) {
+      icon = Icons.error;
+      title = 'Verification Rejected';
+      subtitle = 'Please review and resubmit your application';
+      color = AppTheme.destructive;
+    } else {
+      icon = Icons.info;
+      title = 'Verification Required';
+      subtitle = 'Complete your identity verification to access all services';
+      color = AppTheme.info;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 48, color: color),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: color.withOpacity(0.8),
+                ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
-}
 
-class _DocumentUploadCard extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
+  String _getProgressSubtitle(String status) {
+    switch (status) {
+      case 'submitted':
+        return 'Your application is in queue for verification';
+      case 'under_automated_verification':
+        return 'AI verification in progress...';
+      case 'under_officer_review':
+        return 'An officer is reviewing your application';
+      default:
+        return 'Your application is being processed';
+    }
+  }
 
-  const _DocumentUploadCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-  });
+  Widget _buildDocumentsSection() {
+    final documents = [
+      {'icon': Icons.credit_card, 'title': 'Aadhaar Card', 'desc': 'Clear image (JPG/PNG, max 5MB)'},
+      {'icon': Icons.badge, 'title': 'PAN Card', 'desc': 'Clear image (JPG/PNG, max 5MB)'},
+      {'icon': Icons.person, 'title': 'Personal Info', 'desc': 'Name, address, mobile number'},
+      {'icon': Icons.camera_alt, 'title': 'Live Selfie', 'desc': 'Real-time face verification'},
+    ];
 
-  @override
-  State<_DocumentUploadCard> createState() => _DocumentUploadCardState();
-}
-
-class _DocumentUploadCardState extends State<_DocumentUploadCard> {
-  bool _isUploaded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _isUploaded ? AppTheme.accent : AppTheme.card,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: _isUploaded ? AppTheme.secondary : AppTheme.border,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Required Documents',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            ...documents.asMap().entries.map((entry) {
+              final doc = entry.value;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppTheme.accent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${entry.key + 1}',
+                          style: TextStyle(
+                            color: AppTheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            doc['title'] as String,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          Text(
+                            doc['desc'] as String,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _isUploaded
-                  ? AppTheme.secondary.withOpacity(0.1)
-                  : AppTheme.muted,
-              borderRadius: BorderRadius.circular(8),
+    );
+  }
+
+  Widget _buildStepsSection() {
+    final steps = [
+      'Fill the verification form with accurate details',
+      'Upload clear images of your documents',
+      'Complete face verification (4 angles)',
+      'Submit and wait for review',
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Verification Steps',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-            child: Icon(
-              _isUploaded ? Icons.check : widget.icon,
-              color: _isUploaded ? AppTheme.secondary : AppTheme.mutedForeground,
+            const SizedBox(height: 16),
+            ...steps.map((step) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.check_circle, size: 20, color: AppTheme.success),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        step,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCTAButton(VerificationProvider verification) {
+    // Approved - Show certificate button
+    if (verification.isApproved) {
+      return Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/verification/status'),
+              icon: const Icon(Icons.verified),
+              label: const Text('View Verification Certificate'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.success,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      );
+    }
+
+    // In Progress - Show track button (NO start verification option)
+    if (verification.isVerificationInProgress) {
+      return Column(
+        children: [
+          // Info box
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: AppTheme.warning.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.warning.withOpacity(0.3)),
+            ),
+            child: Row(
               children: [
-                Text(
-                  widget.title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                Text(
-                  widget.subtitle,
-                  style: Theme.of(context).textTheme.bodySmall,
+                Icon(Icons.info_outline, color: AppTheme.warning, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'You cannot submit a new application while verification is in progress.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.warning,
+                        ),
+                  ),
                 ),
               ],
             ),
           ),
-          OutlinedButton(
-            onPressed: () => setState(() => _isUploaded = !_isUploaded),
-            child: Text(_isUploaded ? 'CHANGE' : 'UPLOAD'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReviewItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isLast;
-
-  const _ReviewItem({
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : Border(bottom: BorderSide(color: AppTheme.border)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          Flexible(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-              textAlign: TextAlign.end,
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/verification/status'),
+              icon: const Icon(Icons.track_changes),
+              label: const Text('Track Application'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.warning,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
             ),
           ),
         ],
-      ),
+      );
+    }
+
+    // Rejected or Not Started - Show start/resubmit button
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _navigateToForm, // Use the safe navigation method
+            icon: const Icon(Icons.arrow_forward),
+            label: Text(
+              verification.isRejected ? 'Resubmit Application' : 'Start Verification',
+            ),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Estimated time: 5-10 minutes',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
     );
   }
 }

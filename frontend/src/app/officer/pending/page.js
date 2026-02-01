@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import {
   Clock, RefreshCw, Eye, CheckCircle, XCircle, AlertTriangle,
-  FileText, MapPin, Phone, Loader2, ChevronDown, ChevronUp, Shield
+  FileText, MapPin, Phone, Loader2, ChevronDown, ChevronUp, Shield,
+  Brain, ScanFace, FileCheck, Bot, Fingerprint
 } from 'lucide-react';
 
 export default function PendingApplicationsPage() {
@@ -43,18 +45,11 @@ export default function PendingApplicationsPage() {
       });
 
       if (!res.ok) {
-        const text = await res.text();
         throw new Error(`API Error: ${res.status}`);
       }
 
       const data = await res.json();
       console.log('Fetched applications:', data.applications?.length);
-      
-      // Log each application ID for debugging
-      data.applications?.forEach(app => {
-        console.log('App ID:', app._id, 'Name:', app.fullName);
-      });
-      
       setApplications(data.applications || []);
 
     } catch (err) {
@@ -66,14 +61,11 @@ export default function PendingApplicationsPage() {
   };
 
   const getFullId = (app) => {
-    // Return the full MongoDB _id as string
     return typeof app._id === 'object' ? app._id.toString() : app._id;
   };
 
   const handleApprove = async (app) => {
     const appId = getFullId(app);
-    console.log('Approving application:', appId);
-    
     setActionLoading(appId);
     setError('');
     
@@ -89,7 +81,6 @@ export default function PendingApplicationsPage() {
       });
 
       const data = await res.json();
-      console.log('Approve response:', data);
       
       if (!res.ok) {
         throw new Error(data.error || 'Failed to approve');
@@ -100,7 +91,6 @@ export default function PendingApplicationsPage() {
       setTimeout(() => setSuccess(''), 3000);
 
     } catch (err) {
-      console.error('Approve error:', err);
       setError(err.message);
     } finally {
       setActionLoading(null);
@@ -115,7 +105,6 @@ export default function PendingApplicationsPage() {
       return;
     }
 
-    console.log('Rejecting application:', appId);
     setActionLoading(appId);
     setError('');
     
@@ -131,7 +120,6 @@ export default function PendingApplicationsPage() {
       });
 
       const data = await res.json();
-      console.log('Reject response:', data);
       
       if (!res.ok) {
         throw new Error(data.error || 'Failed to reject');
@@ -144,41 +132,41 @@ export default function PendingApplicationsPage() {
       setTimeout(() => setSuccess(''), 3000);
 
     } catch (err) {
-      console.error('Reject error:', err);
       setError(err.message);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const getRiskBadge = (score) => {
-    const s = score || 0;
-    if (s >= 70) return <Badge className="bg-red-500 text-white">High ({s})</Badge>;
-    if (s >= 40) return <Badge className="bg-yellow-500 text-white">Medium ({s})</Badge>;
-    return <Badge className="bg-green-500 text-white">Low ({s})</Badge>;
+  const getScoreColor = (score) => {
+    if (score >= 70) return 'text-green-600';
+    if (score >= 40) return 'text-yellow-600';
+    return 'text-red-600';
   };
 
-  const getAIFlags = (app) => {
-    const flags = [];
-    const ai = app.aiAnalysis || {};
-    
-    if (ai.documentAnalysis?.anomalyDetected) {
-      flags.push({ icon: '📄', text: 'Document Issue', desc: ai.documentAnalysis.issues?.join(', ') });
-    }
-    if (ai.faceAnalysis?.mismatch) {
-      flags.push({ icon: '👤', text: 'Face Mismatch', desc: 'Face may not match documents' });
-    }
-    if (ai.faceAnalysis?.reuse) {
-      flags.push({ icon: '🚨', text: 'Face Reuse', desc: 'Face used in another application' });
-    }
-    if (ai.behaviorAnalysis?.suspicious) {
-      flags.push({ icon: '⚠️', text: 'Suspicious Behavior', desc: ai.behaviorAnalysis.issues?.join(', ') });
-    }
-    
-    return flags;
+  const getScoreBgColor = (score) => {
+    if (score >= 70) return 'bg-green-50 border-green-200';
+    if (score >= 40) return 'bg-yellow-50 border-yellow-200';
+    return 'bg-red-50 border-red-200';
   };
 
-  // Find the app for reject modal
+  const getDecisionBadge = (decision) => {
+    switch (decision?.toUpperCase()) {
+      case 'PASS':
+        return <Badge className="bg-green-500 text-white text-xs">PASS</Badge>;
+      case 'FAIL':
+        return <Badge className="bg-red-500 text-white text-xs">FAIL</Badge>;
+      case 'REVIEW':
+        return <Badge className="bg-yellow-500 text-white text-xs">REVIEW</Badge>;
+      case 'APPROVED':
+        return <Badge className="bg-green-500 text-white text-xs">APPROVED</Badge>;
+      case 'REJECTED':
+        return <Badge className="bg-red-500 text-white text-xs">REJECTED</Badge>;
+      default:
+        return <Badge className="bg-gray-400 text-white text-xs">PENDING</Badge>;
+    }
+  };
+
   const rejectApp = showRejectModal ? applications.find(a => getFullId(a) === showRejectModal) : null;
 
   return (
@@ -190,7 +178,7 @@ export default function PendingApplicationsPage() {
             <Clock className="h-6 w-6 text-orange-500" />
             Pending Review
           </h1>
-          <p className="text-gray-500">{applications.length} applications</p>
+          <p className="text-gray-500">{applications.length} applications awaiting your review</p>
         </div>
         <Button onClick={fetchApplications} disabled={loading} variant="outline">
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
@@ -269,37 +257,50 @@ export default function PendingApplicationsPage() {
         </Card>
       )}
 
-      {/* Applications */}
+      {/* Applications List */}
       {!loading && applications.map((app) => {
         const appId = getFullId(app);
-        const riskScore = app.behaviorAnalysis?.riskScore || app.aiAnalysis?.overallRiskScore || 0;
-        const flags = getAIFlags(app);
+        const ai = app.aiVerification || {};
+        const aiScore = ai.overallScore || 0;
+        const botLikelihood = app.behaviorSummary?.botLikelihood || 0;
+        const isHuman = app.behaviorSummary?.isHuman !== false;
         const isExpanded = expandedApp === appId;
         const isLoading = actionLoading === appId;
 
         return (
-          <Card key={appId} className="border shadow-sm">
+          <Card key={appId} className="border shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-4">
               {/* Header Row */}
               <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                 <div className="flex items-center gap-4 flex-1">
-                  <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                  <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow">
                     {app.fullName?.charAt(0) || '?'}
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-lg">{app.fullName}</h3>
-                      <code className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                      <h3 className="font-bold text-lg truncate">{app.fullName}</h3>
+                      <code className="text-xs bg-gray-100 px-2 py-0.5 rounded font-mono">
                         #{appId.slice(-6).toUpperCase()}
                       </code>
-                      {getRiskBadge(riskScore)}
                     </div>
                     <div className="text-sm text-gray-500 flex flex-wrap gap-3 mt-1">
-                      <span><FileText className="h-3 w-3 inline" /> {app.documentIdNumber}</span>
-                      <span><Phone className="h-3 w-3 inline" /> +91 {app.mobileNumber}</span>
-                      <span><MapPin className="h-3 w-3 inline" /> {app.city}, {app.state}</span>
+                      <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> {app.documentIdNumber}</span>
+                      <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> +91 {app.mobileNumber}</span>
+                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {app.city}, {app.state}</span>
                     </div>
                   </div>
+                </div>
+
+                {/* Score Badges */}
+                <div className="flex gap-2 flex-wrap">
+                  <Badge className={`${aiScore >= 70 ? 'bg-green-500' : aiScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'} text-white`}>
+                    <Brain className="h-3 w-3 mr-1" /> AI: {aiScore}/100
+                  </Badge>
+                  <Badge className={isHuman ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                    {isHuman ? <CheckCircle className="h-3 w-3 mr-1" /> : <Bot className="h-3 w-3 mr-1" />}
+                    {isHuman ? 'Human' : `Bot ${botLikelihood}%`}
+                  </Badge>
+                  {getDecisionBadge(ai.decision)}
                 </div>
 
                 {/* Actions */}
@@ -326,26 +327,66 @@ export default function PendingApplicationsPage() {
                     {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
                   <Link href={`/officer/review/${appId}`}>
-                    <Button variant="outline"><Eye className="h-4 w-4 mr-1" /> View</Button>
+                    <Button variant="outline"><Eye className="h-4 w-4 mr-1" /> Full Review</Button>
                   </Link>
                 </div>
               </div>
 
-              {/* AI Flags */}
+              {/* AI Verification Summary */}
               <div className="mt-4 pt-4 border-t">
-                <p className="text-sm font-semibold mb-2"><Shield className="h-4 w-4 inline mr-1" /> AI Analysis:</p>
-                {flags.length === 0 ? (
-                  <div className="bg-green-50 text-green-700 p-2 rounded flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5" /> No issues detected
+                <div className="flex items-center gap-2 mb-3">
+                  <Brain className="h-4 w-4 text-purple-500" />
+                  <p className="text-sm font-semibold">AI Verification Summary</p>
+                  {ai.status === 'completed' && (
+                    <Badge className="bg-purple-100 text-purple-700 text-xs">Completed</Badge>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {/* AI Score */}
+                  <div className={`p-3 rounded-lg border text-center ${getScoreBgColor(aiScore)}`}>
+                    <div className="text-xs text-gray-500 mb-1">AI Score</div>
+                    <div className={`text-2xl font-bold ${getScoreColor(aiScore)}`}>{aiScore}</div>
+                    <Progress value={aiScore} className="h-1.5 mt-2" />
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {flags.map((f, i) => (
-                      <div key={i} className="bg-orange-50 text-orange-800 px-3 py-2 rounded border border-orange-200">
-                        <span className="font-medium">{f.icon} {f.text}</span>
-                        {f.desc && <p className="text-sm text-orange-600 mt-1">{f.desc}</p>}
-                      </div>
-                    ))}
+                  
+                  {/* Face Verification */}
+                  <div className={`p-3 rounded-lg border text-center ${ai.faceDecision === 'PASS' ? 'bg-green-50 border-green-200' : ai.faceDecision === 'REVIEW' ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'}`}>
+                    <div className="text-xs text-gray-500 mb-1">Face</div>
+                    <ScanFace className={`h-5 w-5 mx-auto ${ai.faceDecision === 'PASS' ? 'text-green-600' : ai.faceDecision === 'REVIEW' ? 'text-yellow-600' : 'text-red-600'}`} />
+                    <div className="text-xs font-medium mt-1">{ai.faceDecision || 'N/A'}</div>
+                  </div>
+                  
+                  {/* PAN Verification */}
+                  <div className={`p-3 rounded-lg border text-center ${ai.panCardDecision === 'PASS' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    <div className="text-xs text-gray-500 mb-1">PAN</div>
+                    <FileCheck className={`h-5 w-5 mx-auto ${ai.panCardDecision === 'PASS' ? 'text-green-600' : 'text-red-600'}`} />
+                    <div className="text-xs font-medium mt-1">{ai.panCardDecision || 'N/A'}</div>
+                  </div>
+                  
+                  {/* Aadhaar Verification */}
+                  <div className={`p-3 rounded-lg border text-center ${ai.aadhaarCardDecision === 'PASS' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                    <div className="text-xs text-gray-500 mb-1">Aadhaar</div>
+                    <Fingerprint className={`h-5 w-5 mx-auto ${ai.aadhaarCardDecision === 'PASS' ? 'text-green-600' : 'text-red-600'}`} />
+                    <div className="text-xs font-medium mt-1">{ai.aadhaarCardDecision || 'N/A'}</div>
+                  </div>
+                  
+                  {/* Checks Summary */}
+                  <div className="p-3 rounded-lg border bg-gray-50 text-center">
+                    <div className="text-xs text-gray-500 mb-1">Checks</div>
+                    <div className="flex justify-center gap-2">
+                      <span className="text-green-600 font-bold">{ai.passedChecks || 0}✓</span>
+                      <span className="text-red-600 font-bold">{ai.failedChecks || 0}✗</span>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">{ai.reviewRequiredChecks || 0} review</div>
+                  </div>
+                </div>
+
+                {/* Issues Preview */}
+                {ai.issues?.length > 0 && (
+                  <div className="mt-3 p-2 bg-red-50 rounded border border-red-200">
+                    <p className="text-xs font-medium text-red-700 mb-1">⚠️ Issues ({ai.issues.length}):</p>
+                    <p className="text-xs text-red-600 line-clamp-2">{ai.issues.slice(0, 2).join(' • ')}{ai.issues.length > 2 ? ' ...' : ''}</p>
                   </div>
                 )}
               </div>
@@ -355,27 +396,64 @@ export default function PendingApplicationsPage() {
                 <div className="mt-4 pt-4 border-t bg-gray-50 -mx-4 -mb-4 p-4 rounded-b">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <h4 className="font-semibold mb-2">Personal Info</h4>
-                      <p><strong>Name:</strong> {app.fullName}</p>
-                      <p><strong>Gender:</strong> {app.gender}</p>
-                      <p><strong>Document ID:</strong> {app.documentIdNumber}</p>
-                      <p><strong>Mobile:</strong> +91 {app.mobileNumber}</p>
-                      <p><strong>Full ID:</strong> <code className="text-xs">{appId}</code></p>
+                      <h4 className="font-semibold mb-2 text-gray-700">Personal Info</h4>
+                      <div className="space-y-1">
+                        <p><span className="text-gray-500">Name:</span> {app.fullName}</p>
+                        <p><span className="text-gray-500">Gender:</span> {app.gender}</p>
+                        <p><span className="text-gray-500">Document ID:</span> {app.documentIdNumber}</p>
+                        <p><span className="text-gray-500">Mobile:</span> +91 {app.mobileNumber}</p>
+                      </div>
                     </div>
                     <div>
-                      <h4 className="font-semibold mb-2">Address</h4>
-                      <p>{app.addressLine1}</p>
-                      {app.addressLine2 && <p>{app.addressLine2}</p>}
-                      <p>{app.city}, {app.taluka}, {app.district}</p>
-                      <p>{app.state} - {app.pincode}</p>
+                      <h4 className="font-semibold mb-2 text-gray-700">Address</h4>
+                      <div className="space-y-1 text-gray-600">
+                        <p>{app.addressLine1}</p>
+                        {app.addressLine2 && <p>{app.addressLine2}</p>}
+                        <p>{app.city}, {app.taluka}, {app.district}</p>
+                        <p>{app.state} - {app.pincode}</p>
+                      </div>
                     </div>
                     <div>
-                      <h4 className="font-semibold mb-2">Verification Info</h4>
-                      <p><strong>Status:</strong> {app.status}</p>
-                      <p><strong>Risk Score:</strong> {riskScore}/100</p>
-                      <p><strong>Submitted:</strong> {app.submittedAt ? new Date(app.submittedAt).toLocaleString() : 'N/A'}</p>
+                      <h4 className="font-semibold mb-2 text-gray-700">AI Analysis</h4>
+                      <div className="space-y-1">
+                        <p><span className="text-gray-500">AI Score:</span> <span className={getScoreColor(aiScore)}>{aiScore}/100</span></p>
+                        <p><span className="text-gray-500">AI Decision:</span> {ai.decision || 'Pending'}</p>
+                        <p><span className="text-gray-500">Risk Level:</span> {ai.riskLevel || 'N/A'}</p>
+                        <p><span className="text-gray-500">Bot Likelihood:</span> {botLikelihood}%</p>
+                        <p><span className="text-gray-500">Submitted:</span> {app.submittedAt ? new Date(app.submittedAt).toLocaleString() : 'N/A'}</p>
+                      </div>
                     </div>
                   </div>
+
+                  {/* All Issues */}
+                  {ai.issues?.length > 0 && (
+                    <div className="mt-4 p-3 bg-red-50 rounded border border-red-200">
+                      <p className="text-sm font-semibold text-red-700 mb-2">All Issues:</p>
+                      <ul className="text-sm text-red-600 space-y-1">
+                        {ai.issues.map((issue, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <XCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            {issue}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Recommendations */}
+                  {ai.recommendations?.length > 0 && (
+                    <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
+                      <p className="text-sm font-semibold text-blue-700 mb-2">Recommendations:</p>
+                      <ul className="text-sm text-blue-600 space-y-1">
+                        {ai.recommendations.map((rec, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            {rec}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
