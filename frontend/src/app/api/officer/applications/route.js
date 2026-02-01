@@ -200,7 +200,7 @@ export async function GET(request) {
           
           // Processing Info
           processingTime: vr?.processingTime?.total || 0,
-          status: vr?.status || 'pending',
+          status: vr?.status || 'under_officer_review',
           completedAt: embeddedAI.completedAt || vr?.completedAt
         },
         

@@ -178,8 +178,8 @@ const verificationResultsSchema = new mongoose.Schema({
   // Status
   status: {
     type: String,
-    enum: ['processing', 'completed', 'failed', 'partial'],
-    default: 'processing',
+    enum: ['draft', 'submitted', 'under_automated_verification', 'under_officer_review', 'approved', 'rejected'],
+    default: 'draft',
     index: true
   },
   

@@ -56,7 +56,7 @@ export async function POST(request) {
       userId: verification.userId,
       verificationId: new mongoose.Types.ObjectId(verificationId),
       sessionId: `session_${verificationId}_${Date.now()}`,
-      status: 'processing',
+      status: 'under_automated_verification',
       startedAt: new Date()
     });
 
@@ -378,9 +378,9 @@ export async function POST(request) {
     // Add any errors
     if (errors.length > 0) {
       verificationResult.errors = errors;
-      verificationResult.status = 'partial';
+      verificationResult.status = 'under_officer_review';
     } else {
-      verificationResult.status = 'completed';
+      verificationResult.status = 'under_automated_verification';
     }
 
     // Calculate overall assessment (this now includes verificationStatus and isHighRisk)
@@ -412,7 +412,7 @@ export async function POST(request) {
           aiVerificationResults: {
             overallScore: aiScore,
             riskLevel: aiRiskLevel,
-            decision: verificationResult.overallAssessment?.finalDecision || 'PENDING',
+            decision: verificationResult.overallAssessment?.finalDecision || 'under_officer_review',
             passedChecks: verificationResult.overallAssessment?.passedChecks || 0,
             failedChecks: verificationResult.overallAssessment?.failedChecks || 0,
             reviewRequiredChecks: verificationResult.overallAssessment?.reviewRequiredChecks || 0,
