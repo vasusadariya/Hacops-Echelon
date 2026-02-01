@@ -239,9 +239,6 @@ export async function POST(request) {
     // Trigger AI verification (async)
     triggerAIVerification(verificationId.toString());
 
-    console.log('✅ Behavioral analysis saved:', behavioralResult.analysisId.toString());
-    console.log('📊 Behavior Summary:', behavioralResult.summary);
-
     // ============ RETURN SUCCESS ============
     return NextResponse.json({
       success: true,
