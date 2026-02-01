@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
-// import { verifyToken } from '@/lib/jwt';
+import { verifyToken } from '@/lib/jwt';
 
 export async function POST(request) {
   try {
