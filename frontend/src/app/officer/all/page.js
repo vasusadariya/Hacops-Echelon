@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileSearch, Search, RefreshCw, Eye, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { FileSearch, Search, RefreshCw, Eye, ChevronLeft, ChevronRight, Filter, AlertTriangle, Cpu } from 'lucide-react';
 
 export default function AllApplicationsPage() {
   const [applications, setApplications] = useState([]);
@@ -37,8 +37,8 @@ export default function AllApplicationsPage() {
       if (res.ok) {
         const data = await res.json();
         setApplications(data.applications || []);
-        setTotalPages(data.totalPages || 1);
-        setTotal(data.total || 0);
+        setTotalPages(data.totalPages || data.pagination?.totalPages || 1);
+        setTotal(data.total || data.pagination?.total || 0);
       }
     } catch (err) { 
       console.error(err); 
@@ -53,20 +53,43 @@ export default function AllApplicationsPage() {
     app.documentIdNumber?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, isHighRisk) => {
     const config = {
+      draft: { className: 'bg-gray-100 text-gray-700', label: 'Draft' },
       submitted: { className: 'bg-blue-100 text-blue-700', label: 'Submitted' },
+      under_automated_verification: { className: 'bg-purple-100 text-purple-700', label: 'AI Processing' },
       under_officer_review: { className: 'bg-yellow-100 text-yellow-700', label: 'Under Review' },
       approved: { className: 'bg-green-100 text-green-700', label: 'Approved' },
       rejected: { className: 'bg-red-100 text-red-700', label: 'Rejected' }
     };
     const c = config[status] || { className: 'bg-gray-100 text-gray-700', label: status };
-    return <Badge className={c.className}>{c.label}</Badge>;
+    return (
+      <div className="flex items-center gap-1">
+        <Badge className={c.className}>{c.label}</Badge>
+        {isHighRisk && <Badge className="bg-red-500 text-white text-xs"><AlertTriangle className="h-3 w-3" /></Badge>}
+      </div>
+    );
   };
 
-  const getRiskBadge = (score) => {
-    if (score >= 70) return <Badge className="bg-red-100 text-red-700">High</Badge>;
-    if (score >= 40) return <Badge className="bg-yellow-100 text-yellow-700">Medium</Badge>;
+  const getRiskBadge = (app) => {
+    const aiScore = app.aiVerification?.overallScore || 0;
+    const botLikelihood = app.behaviorSummary?.botLikelihood || 0;
+    const riskLevel = app.aiVerification?.riskLevel || app.behaviorSummary?.riskLevel || 'MEDIUM';
+    
+    // Use AI score if available, otherwise use behavior risk
+    if (aiScore > 0) {
+      if (aiScore < 40 || riskLevel === 'CRITICAL' || riskLevel === 'HIGH') {
+        return <Badge className="bg-red-100 text-red-700">High ({aiScore})</Badge>;
+      }
+      if (aiScore < 70 || riskLevel === 'MEDIUM') {
+        return <Badge className="bg-yellow-100 text-yellow-700">Medium ({aiScore})</Badge>;
+      }
+      return <Badge className="bg-green-100 text-green-700">Low ({aiScore})</Badge>;
+    }
+    
+    // Fallback to bot likelihood
+    if (botLikelihood >= 70) return <Badge className="bg-red-100 text-red-700">High</Badge>;
+    if (botLikelihood >= 40) return <Badge className="bg-yellow-100 text-yellow-700">Medium</Badge>;
     return <Badge className="bg-green-100 text-green-700">Low</Badge>;
   };
 
@@ -109,14 +132,16 @@ export default function AllApplicationsPage() {
               />
             </div>
             <Select value={statusFilter} onValueChange={handleStatusChange}>
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger className="w-full sm:w-48">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="submitted">Submitted</SelectItem>
-                <SelectItem value="under_officer_review">Under Review</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="submitted">Submitted (Queued)</SelectItem>
+                <SelectItem value="under_automated_verification">AI Processing</SelectItem>
+                <SelectItem value="under_officer_review">Under Officer Review</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
               </SelectContent>
@@ -147,7 +172,7 @@ export default function AllApplicationsPage() {
                   <th className="text-left p-4 font-semibold text-gray-700">Applicant Name</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Document ID</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Status</th>
-                  <th className="text-left p-4 font-semibold text-gray-700">Risk</th>
+                  <th className="text-left p-4 font-semibold text-gray-700">Risk / AI Score</th>
                   <th className="text-left p-4 font-semibold text-gray-700">Submitted</th>
                   <th className="text-right p-4 font-semibold text-gray-700">Action</th>
                 </tr>
@@ -168,7 +193,7 @@ export default function AllApplicationsPage() {
                   </tr>
                 ) : (
                   filteredApps.map((app) => (
-                    <tr key={app._id} className="border-b hover:bg-gray-50 transition-colors">
+                    <tr key={app._id} className={`border-b hover:bg-gray-50 transition-colors ${app.isHighRisk ? 'bg-red-50/30' : ''}`}>
                       <td className="p-4">
                         <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded font-medium">
                           {app._id?.slice(-8).toUpperCase()}
@@ -176,8 +201,8 @@ export default function AllApplicationsPage() {
                       </td>
                       <td className="p-4 font-medium text-gray-900">{app.fullName}</td>
                       <td className="p-4 font-mono text-xs text-gray-600">{app.documentIdNumber}</td>
-                      <td className="p-4">{getStatusBadge(app.status)}</td>
-                      <td className="p-4">{getRiskBadge(app.behaviorAnalysis?.riskScore || 0)}</td>
+                      <td className="p-4">{getStatusBadge(app.status, app.isHighRisk)}</td>
+                      <td className="p-4">{getRiskBadge(app)}</td>
                       <td className="p-4 text-gray-500 text-sm">
                         {app.submittedAt 
                           ? new Date(app.submittedAt).toLocaleDateString('en-IN', {

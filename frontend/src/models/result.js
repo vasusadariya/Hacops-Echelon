@@ -117,7 +117,15 @@ const overallAssessmentSchema = {
   confidence: { type: Number, min: 0, max: 1 },
   summary: { type: String },
   issues: [{ type: String }],
-  recommendations: [{ type: String }]
+  recommendations: [{ type: String }],
+  // NEW: Mapped verification status for the Verification model
+  verificationStatus: {
+    type: String,
+    enum: ['draft', 'submitted', 'under_automated_verification', 'under_officer_review', 'approved', 'rejected'],
+    default: 'under_officer_review'
+  },
+  // NEW: Flag for high risk applications
+  isHighRisk: { type: Boolean, default: false }
 };
 
 // Main Verification Results Schema
@@ -209,12 +217,17 @@ const verificationResultsSchema = new mongoose.Schema({
 verificationResultsSchema.index({ userId: 1, createdAt: -1 });
 verificationResultsSchema.index({ verificationId: 1 });
 verificationResultsSchema.index({ 'overallAssessment.finalDecision': 1 });
+verificationResultsSchema.index({ 'overallAssessment.verificationStatus': 1 });
+verificationResultsSchema.index({ 'overallAssessment.isHighRisk': 1 });
 verificationResultsSchema.index({ status: 1, createdAt: -1 });
 
 // Virtual for getting report URL
 verificationResultsSchema.virtual('reportUrl').get(function() {
   return `/api/reports/${this._id}`;
 });
+
+// HIGH RISK THRESHOLD - applications with score below this are flagged as high risk
+const HIGH_RISK_SCORE_THRESHOLD = 40;
 
 // Method to calculate overall assessment
 verificationResultsSchema.methods.calculateOverallAssessment = function() {
@@ -289,11 +302,8 @@ verificationResultsSchema.methods.calculateOverallAssessment = function() {
     recommendations.push('Provide clearer image of Aadhaar card');
   }
 
-  // Determine risk level based on results (no automatic approval/rejection)
-  let finalDecision = 'PENDING'; // Always pending for admin review
+  // ============ DETERMINE RISK LEVEL ============
   let riskLevel = 'MEDIUM';
-
-  // Calculate risk level based on checks, but don't auto-approve or auto-reject
   if (failedChecks === 0 && reviewRequiredChecks === 0) {
     riskLevel = 'LOW';
   } else if (failedChecks >= 2) {
@@ -304,6 +314,23 @@ verificationResultsSchema.methods.calculateOverallAssessment = function() {
     riskLevel = 'MEDIUM';
   }
 
+  // ============ DETERMINE IF HIGH RISK ============
+  // High risk if: score below threshold OR critical/high risk level
+  const isHighRisk = totalScore < HIGH_RISK_SCORE_THRESHOLD || 
+                     riskLevel === 'CRITICAL' || 
+                     riskLevel === 'HIGH';
+
+  // ============ DETERMINE FINAL DECISION (AI recommendation) ============
+  // This is the AI's recommendation, NOT the final verification status
+  let finalDecision = 'PENDING';
+  // AI can suggest but officer makes final decision
+  // Keep all as PENDING to require officer review
+
+  // ============ MAP TO VERIFICATION STATUS ============
+  // After AI processing, ALL applications go to under_officer_review
+  // Officers will see high-risk ones flagged separately
+  const verificationStatus = 'under_officer_review';
+
   const confidence = totalScore / 100;
 
   this.overallAssessment = {
@@ -311,15 +338,29 @@ verificationResultsSchema.methods.calculateOverallAssessment = function() {
     passedChecks,
     failedChecks,
     reviewRequiredChecks,
-    finalDecision, // Always PENDING - admin will decide
+    finalDecision,
     riskLevel,
     confidence,
-    summary: `Verification analysis completed with ${passedChecks}/${passedChecks + failedChecks + reviewRequiredChecks} checks passed. Awaiting admin review.`,
+    summary: `Verification analysis completed with ${passedChecks}/${passedChecks + failedChecks + reviewRequiredChecks} checks passed. ${isHighRisk ? '⚠️ HIGH RISK - Requires careful review.' : 'Awaiting officer review.'}`,
     issues,
-    recommendations
+    recommendations,
+    // NEW: These fields help with status management
+    verificationStatus,
+    isHighRisk
   };
 
   return this.overallAssessment;
+};
+
+// NEW: Method to get the proper verification status to set
+verificationResultsSchema.methods.getVerificationStatus = function() {
+  // After AI processing completes, application goes to officer review
+  return this.overallAssessment?.verificationStatus || 'under_officer_review';
+};
+
+// NEW: Method to check if application is high risk
+verificationResultsSchema.methods.checkIsHighRisk = function() {
+  return this.overallAssessment?.isHighRisk || false;
 };
 
 // Method to mark as completed

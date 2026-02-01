@@ -30,20 +30,34 @@ export async function GET(request) {
     const verificationsCollection = db.collection('verifications');
     const behavioralCollection = db.collection('behavioralanalyses');
 
-    // Get verification counts
-    const [total, pending, approved, rejected, underAI] = await Promise.all([
+    // Get verification counts by status
+    const [
+      total,
+      drafts,              // Not yet submitted
+      submitted,           // Submitted, waiting for AI to start processing
+      underAI,             // Currently being processed by AI
+      pending,             // AI completed, waiting for officer review (under_officer_review)
+      approved,
+      rejected
+    ] = await Promise.all([
       verificationsCollection.countDocuments({}),
+      verificationsCollection.countDocuments({ status: 'draft' }),
+      verificationsCollection.countDocuments({ status: 'submitted' }),
+      verificationsCollection.countDocuments({ status: 'under_automated_verification' }),
       verificationsCollection.countDocuments({ status: 'under_officer_review' }),
       verificationsCollection.countDocuments({ status: 'approved' }),
-      verificationsCollection.countDocuments({ status: 'rejected' }),
-      verificationsCollection.countDocuments({ status: 'under_automated_verification' })
+      verificationsCollection.countDocuments({ status: 'rejected' })
     ]);
 
-    // Get high risk using NEW behaviorSummary field
+    // Get high risk count - applications that are pending review AND flagged as high risk
     const highRisk = await verificationsCollection.countDocuments({
+      status: 'under_officer_review',
       $or: [
+        { isHighRisk: true },
         { 'behaviorSummary.riskLevel': { $in: ['high', 'critical'] } },
-        { 'behaviorSummary.botLikelihood': { $gte: 50 } }
+        { 'behaviorSummary.botLikelihood': { $gte: 70 } },
+        { 'aiVerificationResults.riskLevel': { $in: ['HIGH', 'CRITICAL'] } },
+        { 'aiVerificationResults.overallScore': { $lt: 40 } }
       ]
     });
 
@@ -58,27 +72,30 @@ export async function GET(request) {
           botsDetected: { $sum: { $cond: [{ $gte: ['$botLikelihood', 50] }, 1, 0] } },
           lowRisk: { $sum: { $cond: [{ $eq: ['$riskLevel', 'low'] }, 1, 0] } },
           mediumRisk: { $sum: { $cond: [{ $eq: ['$riskLevel', 'medium'] }, 1, 0] } },
-          highRisk: { $sum: { $cond: [{ $eq: ['$riskLevel', 'high'] }, 1, 0] } },
+          highRiskCount: { $sum: { $cond: [{ $eq: ['$riskLevel', 'high'] }, 1, 0] } },
           criticalRisk: { $sum: { $cond: [{ $eq: ['$riskLevel', 'critical'] }, 1, 0] } }
         }
       }
     ]).toArray();
 
-    // Today's processed
+    // Today's processed (approved or rejected today)
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayProcessed = await verificationsCollection.countDocuments({
-      reviewedAt: { $gte: todayStart }
+      reviewedAt: { $gte: todayStart },
+      status: { $in: ['approved', 'rejected'] }
     });
 
     return NextResponse.json({
-      // Verification stats
+      // Main verification stats by status
       total,
-      pending,
-      approved,
-      rejected,
-      highRisk,
-      underAIVerification: underAI,
+      drafts,                             // draft
+      submitted,                          // submitted (waiting for AI)
+      underAIVerification: underAI,       // under_automated_verification (AI processing)
+      pending,                            // under_officer_review (ready for officer)
+      highRisk,                           // under_officer_review + high risk flag
+      approved,                           // approved
+      rejected,                           // rejected
       todayProcessed,
       
       // Behavioral analysis stats
@@ -89,7 +106,7 @@ export async function GET(request) {
         botsDetected: 0,
         lowRisk: 0,
         mediumRisk: 0,
-        highRisk: 0,
+        highRiskCount: 0,
         criticalRisk: 0
       }
     });

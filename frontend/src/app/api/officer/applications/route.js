@@ -40,13 +40,23 @@ export async function GET(request) {
       query.status = status;
     }
     
+    // Handle risk filter
     if (riskFilter) {
       if (riskFilter === 'high') {
-        query['behaviorSummary.riskLevel'] = { $in: ['high', 'critical'] };
+        // High risk: either flagged as high risk OR has high/critical risk level OR high bot likelihood OR low AI score
+        query.$or = [
+          { isHighRisk: true },
+          { 'behaviorSummary.riskLevel': { $in: ['high', 'critical'] } },
+          { 'behaviorSummary.botLikelihood': { $gte: 70 } },
+          { 'aiVerificationResults.riskLevel': { $in: ['HIGH', 'CRITICAL'] } },
+          { 'aiVerificationResults.overallScore': { $lt: 40 } }
+        ];
       } else if (riskFilter === 'suspicious') {
         query['behaviorSummary.botLikelihood'] = { $gte: 50 };
-      } else {
-        query['behaviorSummary.riskLevel'] = riskFilter;
+      } else if (riskFilter === 'medium') {
+        query['behaviorSummary.riskLevel'] = 'medium';
+      } else if (riskFilter === 'low') {
+        query['behaviorSummary.riskLevel'] = 'low';
       }
     }
 
@@ -120,6 +130,9 @@ export async function GET(request) {
       const vr = resultsMap[app._id.toString()];
       const overallAssessment = vr?.overallAssessment;
       
+      // Use embedded aiVerificationResults if available, otherwise use vr
+      const embeddedAI = app.aiVerificationResults || {};
+      
       return {
         _id: app._id.toString(),
         fullName: app.fullName,
@@ -134,7 +147,10 @@ export async function GET(request) {
         state: app.state,
         pincode: app.pincode,
         status: app.status,
+        isHighRisk: app.isHighRisk || overallAssessment?.isHighRisk || false,
         submittedAt: app.submittedAt,
+        reviewedAt: app.reviewedAt,
+        rejectionReason: app.rejectionReason,
         
         // Behavioral Summary
         behaviorSummary: app.behaviorSummary || {
@@ -147,60 +163,45 @@ export async function GET(request) {
         
         behavioralAnalysisId: app.behavioralAnalysisId?.toString() || null,
         
-        // AI Verification Results from VerificationResults collection
-        aiVerification: vr ? {
+        // AI Verification Results - prefer embedded, then vr collection
+        aiVerification: {
           // Overall Assessment
-          overallScore: overallAssessment?.totalScore || 0,
-          decision: overallAssessment?.finalDecision || 'PENDING',
-          riskLevel: overallAssessment?.riskLevel || 'MEDIUM',
+          overallScore: embeddedAI.overallScore || overallAssessment?.totalScore || 0,
+          decision: embeddedAI.decision || overallAssessment?.finalDecision || 'PENDING',
+          riskLevel: embeddedAI.riskLevel || overallAssessment?.riskLevel || 'MEDIUM',
           confidence: overallAssessment?.confidence || 0,
-          passedChecks: overallAssessment?.passedChecks || 0,
-          failedChecks: overallAssessment?.failedChecks || 0,
-          reviewRequiredChecks: overallAssessment?.reviewRequiredChecks || 0,
+          passedChecks: embeddedAI.passedChecks || overallAssessment?.passedChecks || 0,
+          failedChecks: embeddedAI.failedChecks || overallAssessment?.failedChecks || 0,
+          reviewRequiredChecks: embeddedAI.reviewRequiredChecks || overallAssessment?.reviewRequiredChecks || 0,
           
           // Face Verification
-          faceVerified: vr.faceVerification?.verified || false,
-          faceDecision: vr.faceVerification?.result?.decision || 'PENDING',
-          realProbability: vr.faceVerification?.result?.real_probability || 0,
-          fakeProbability: vr.faceVerification?.result?.fake_probability || 0,
+          faceVerified: vr?.faceVerification?.verified || false,
+          faceDecision: vr?.faceVerification?.result?.decision || 'PENDING',
+          realProbability: vr?.faceVerification?.result?.real_probability || 0,
+          fakeProbability: vr?.faceVerification?.result?.fake_probability || 0,
           
           // Document Verification
           documentsVerified: (
-            (vr.manipulationDetection?.panCard?.verified || false) &&
-            (vr.manipulationDetection?.aadhaarCard?.verified || false)
+            (vr?.manipulationDetection?.panCard?.verified || false) &&
+            (vr?.manipulationDetection?.aadhaarCard?.verified || false)
           ),
-          panCardAuthentic: vr.manipulationDetection?.panCard?.result?.is_authentic || false,
-          panCardDecision: vr.manipulationDetection?.panCard?.result?.decision || 'PENDING',
-          aadhaarCardAuthentic: vr.manipulationDetection?.aadhaarCard?.result?.is_authentic || false,
-          aadhaarCardDecision: vr.manipulationDetection?.aadhaarCard?.result?.decision || 'PENDING',
+          panCardAuthentic: vr?.manipulationDetection?.panCard?.result?.is_authentic || false,
+          panCardDecision: vr?.manipulationDetection?.panCard?.result?.decision || 'PENDING',
+          aadhaarCardAuthentic: vr?.manipulationDetection?.aadhaarCard?.result?.is_authentic || false,
+          aadhaarCardDecision: vr?.manipulationDetection?.aadhaarCard?.result?.decision || 'PENDING',
           
           // OCR
-          panOCRDetected: vr.panCardOCR?.result?.detected || false,
-          aadhaarOCRDetected: vr.aadhaarCardOCR?.result?.detected || false,
+          panOCRDetected: vr?.panCardOCR?.result?.detected || false,
+          aadhaarOCRDetected: vr?.aadhaarCardOCR?.result?.detected || false,
           
           // Issues & Recommendations
-          issues: overallAssessment?.issues || [],
-          recommendations: overallAssessment?.recommendations || [],
+          issues: embeddedAI.issues || overallAssessment?.issues || [],
+          recommendations: embeddedAI.recommendations || overallAssessment?.recommendations || [],
           
           // Processing Info
-          processingTime: vr.processingTime?.total || 0,
-          status: vr.status || 'pending',
-          completedAt: vr.completedAt
-        } : {
-          overallScore: 0,
-          decision: 'PENDING',
-          riskLevel: 'MEDIUM',
-          passedChecks: 0,
-          failedChecks: 0,
-          reviewRequiredChecks: 0,
-          faceVerified: false,
-          faceDecision: 'PENDING',
-          documentsVerified: false,
-          panOCRDetected: false,
-          aadhaarOCRDetected: false,
-          issues: [],
-          recommendations: [],
-          status: 'pending'
+          processingTime: vr?.processingTime?.total || 0,
+          status: vr?.status || 'pending',
+          completedAt: embeddedAI.completedAt || vr?.completedAt
         },
         
         // Legacy support
@@ -217,8 +218,11 @@ export async function GET(request) {
         total,
         page,
         limit,
-        pages: Math.ceil(total / limit)
-      }
+        pages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit)
+      },
+      total,
+      totalPages: Math.ceil(total / limit)
     });
 
   } catch (error) {

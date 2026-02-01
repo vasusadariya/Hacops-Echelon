@@ -50,7 +50,15 @@ export default function PendingApplicationsPage() {
 
       const data = await res.json();
       console.log('Fetched applications:', data.applications?.length);
-      setApplications(data.applications || []);
+      
+      // Sort: high risk first
+      const sorted = (data.applications || []).sort((a, b) => {
+        if (a.isHighRisk && !b.isHighRisk) return -1;
+        if (!a.isHighRisk && b.isHighRisk) return 1;
+        return 0;
+      });
+      
+      setApplications(sorted);
 
     } catch (err) {
       console.error('Fetch error:', err);
@@ -169,6 +177,9 @@ export default function PendingApplicationsPage() {
 
   const rejectApp = showRejectModal ? applications.find(a => getFullId(a) === showRejectModal) : null;
 
+  // Count high risk
+  const highRiskCount = applications.filter(a => a.isHighRisk).length;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -178,13 +189,28 @@ export default function PendingApplicationsPage() {
             <Clock className="h-6 w-6 text-orange-500" />
             Pending Review
           </h1>
-          <p className="text-gray-500">{applications.length} applications awaiting your review</p>
+          <p className="text-gray-500">
+            {applications.length} applications awaiting your review
+            {highRiskCount > 0 && (
+              <span className="text-red-600 font-medium"> ({highRiskCount} high risk)</span>
+            )}
+          </p>
         </div>
         <Button onClick={fetchApplications} disabled={loading} variant="outline">
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
           Refresh
         </Button>
       </div>
+
+      {/* High Risk Alert */}
+      {highRiskCount > 0 && (
+        <Alert className="bg-red-50 border-red-200">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-700">
+            <strong>{highRiskCount} high-risk application(s)</strong> require careful review. They are shown first in the list.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Messages */}
       {success && (
@@ -266,14 +292,26 @@ export default function PendingApplicationsPage() {
         const isHuman = app.behaviorSummary?.isHuman !== false;
         const isExpanded = expandedApp === appId;
         const isLoading = actionLoading === appId;
+        const isHighRisk = app.isHighRisk;
 
         return (
-          <Card key={appId} className="border shadow-sm hover:shadow-md transition-shadow">
+          <Card 
+            key={appId} 
+            className={`border shadow-sm hover:shadow-md transition-shadow ${isHighRisk ? 'border-2 border-red-300 bg-red-50/30' : ''}`}
+          >
             <CardContent className="p-4">
+              {/* High Risk Badge */}
+              {isHighRisk && (
+                <div className="mb-3 flex items-center gap-2 text-red-700 bg-red-100 px-3 py-1.5 rounded-lg w-fit">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-sm font-semibold">HIGH RISK - Requires careful review</span>
+                </div>
+              )}
+
               {/* Header Row */}
               <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                 <div className="flex items-center gap-4 flex-1">
-                  <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl shadow ${isHighRisk ? 'bg-gradient-to-br from-red-500 to-red-700' : 'bg-gradient-to-br from-orange-400 to-orange-600'}`}>
                     {app.fullName?.charAt(0) || '?'}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -339,6 +377,14 @@ export default function PendingApplicationsPage() {
                   <p className="text-sm font-semibold">AI Verification Summary</p>
                   {ai.status === 'completed' && (
                     <Badge className="bg-purple-100 text-purple-700 text-xs">Completed</Badge>
+                  )}
+                  {ai.riskLevel && (
+                    <Badge className={`text-xs ${
+                      ai.riskLevel === 'CRITICAL' || ai.riskLevel === 'HIGH' ? 'bg-red-500 text-white' :
+                      ai.riskLevel === 'MEDIUM' ? 'bg-yellow-500 text-white' : 'bg-green-500 text-white'
+                    }`}>
+                      {ai.riskLevel}
+                    </Badge>
                   )}
                 </div>
                 

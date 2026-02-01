@@ -29,6 +29,24 @@ export async function POST(request) {
 
     console.log('🚀 Starting ML processing for verification:', verificationId);
 
+    // ============ UPDATE STATUS TO UNDER_AUTOMATED_VERIFICATION ============
+    await db.collection('verifications').updateOne(
+      { _id: new mongoose.Types.ObjectId(verificationId) },
+      {
+        $set: {
+          status: 'under_automated_verification',
+          updatedAt: new Date()
+        },
+        $push: {
+          statusHistory: {
+            status: 'under_automated_verification',
+            changedAt: new Date(),
+            remarks: 'AI verification processing started'
+          }
+        }
+      }
+    );
+
     const startTime = Date.now();
     const timings = {};
     const errors = [];
@@ -365,7 +383,7 @@ export async function POST(request) {
       verificationResult.status = 'completed';
     }
 
-    // Calculate overall assessment
+    // Calculate overall assessment (this now includes verificationStatus and isHighRisk)
     verificationResult.calculateOverallAssessment();
     verificationResult.completedAt = new Date();
 
@@ -374,14 +392,52 @@ export async function POST(request) {
     console.log('✅ ML Processing completed in', totalTime, 'ms');
     console.log('📊 Overall Assessment:', verificationResult.overallAssessment);
 
-    // Update verification document with results reference
+    // ============ GET THE PROPER VERIFICATION STATUS FROM THE MODEL ============
+    const newVerificationStatus = verificationResult.getVerificationStatus();
+    const isHighRisk = verificationResult.checkIsHighRisk();
+    const aiScore = verificationResult.overallAssessment?.totalScore || 0;
+    const aiRiskLevel = verificationResult.overallAssessment?.riskLevel || 'MEDIUM';
+
+    console.log(`📋 Setting verification status to: ${newVerificationStatus} (High Risk: ${isHighRisk})`);
+
+    // Update verification document with results reference and proper status
     await db.collection('verifications').updateOne(
       { _id: new mongoose.Types.ObjectId(verificationId) },
       {
         $set: {
           mlResultsId: verificationResult._id,
           mlProcessingCompleted: true,
-          status: verificationResult.overallAssessment.finalDecision.toLowerCase(),
+          status: newVerificationStatus, // Now properly set to 'under_officer_review'
+          isHighRisk: isHighRisk,
+          aiVerificationResults: {
+            overallScore: aiScore,
+            riskLevel: aiRiskLevel,
+            decision: verificationResult.overallAssessment?.finalDecision || 'PENDING',
+            passedChecks: verificationResult.overallAssessment?.passedChecks || 0,
+            failedChecks: verificationResult.overallAssessment?.failedChecks || 0,
+            reviewRequiredChecks: verificationResult.overallAssessment?.reviewRequiredChecks || 0,
+            issues: verificationResult.overallAssessment?.issues || [],
+            recommendations: verificationResult.overallAssessment?.recommendations || [],
+            completedAt: new Date()
+          },
+          updatedAt: new Date()
+        },
+        $push: {
+          statusHistory: {
+            status: newVerificationStatus,
+            changedAt: new Date(),
+            remarks: `AI verification completed. Score: ${aiScore}/100, Risk: ${aiRiskLevel}${isHighRisk ? ' ⚠️ HIGH RISK' : ''}`
+          }
+        }
+      }
+    );
+
+    // Update user verification status
+    await db.collection('users').updateOne(
+      { _id: verification.userId },
+      {
+        $set: {
+          verificationStatus: newVerificationStatus,
           updatedAt: new Date()
         }
       }
@@ -392,6 +448,8 @@ export async function POST(request) {
       verificationId,
       resultId: verificationResult._id.toString(),
       status: verificationResult.status,
+      newVerificationStatus: newVerificationStatus,
+      isHighRisk: isHighRisk,
       overallAssessment: verificationResult.overallAssessment,
       processingTime: totalTime
     });
