@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ ENUMS ============
+
+enum Role {
+  user
+  admin
+  officer
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum VerificationStatus {
+  draft
+  submitted
+  under_automated_verification
+  under_officer_review
+  approved
+  rejected
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+  critical
+}
+
+enum Recommendation {
+  auto_approve
+  standard_flow
+  enhanced_verification
+  manual_review
+  reject
+}
+
+enum AiDecision {
+  APPROVED
+  REJECTED
+  REVIEW_REQUIRED
+  PENDING
+}
+
+// ============ MODELS ============
+
+model User {
+  id                 String             @id @default(uuid())
+  name               String
+  email              String             @unique
+  password           String
+  role               Role               @default(user)
+  isVerified         Boolean            @default(false)
+  verificationStatus VerificationStatus @default(draft)
+
+  resetPasswordToken  String?
+  resetPasswordExpire DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  verifications         Verification[]       @relation("Applicant")
+  reviewedVerifications Verification[]       @relation("ReviewedBy")
+  reviewedResults       VerificationResult[] @relation("ResultReviewedBy")
+
+  @@map("users")
+}
+
+model Verification {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("Applicant", fields: [userId], references: [id])
+
+  fullName         String
+  gender           Gender
+  documentIdNumber String?
+
+  // Cloudinary upload metadata blobs — {publicId, secureUrl, url, format, width, height, bytes, originalFilename}
+  aadhaarCardImage Json?
+  panCardImage     Json?
+  // {front, left, right, up: {...same shape}, capturedAt}
+  biometricSelfies Json?
+
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  taluka       String
+  district     String
+  state        String
+  pincode      String
+  mobileNumber String
+
+  // {overallTrustScore, botLikelihood, riskLevel, isHuman, recommendation} — denormalized snapshot for list views
+  behaviorSummary       Json?
+  // {overallScore, riskLevel, decision, passedChecks, failedChecks, reviewRequiredChecks, issues, recommendations, completedAt}
+  aiVerificationResults Json?
+  isHighRisk            Boolean @default(false)
+
+  status        VerificationStatus @default(draft)
+  // [{status, changedAt, changedBy, changedByName, remarks}]
+  statusHistory Json[]             @default([])
+
+  reviewedById    String?
+  reviewedBy      User?     @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewedByName  String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  behavioralAnalysis BehavioralAnalysis?
+  verificationResult VerificationResult?
+
+  @@index([userId, status])
+  @@index([status])
+  @@map("verifications")
+}
+
+model VerificationResult {
+  id             String       @id @default(uuid())
+  userId         String
+  verificationId String       @unique
+  verification   Verification @relation(fields: [verificationId], references: [id])
+  sessionId      String?      @unique
+
+  // Raw ML payloads — read/written wholesale, never queried by internal shape
+  faceVerification      Json?
+  panCardOCR            Json?
+  aadhaarCardOCR        Json?
+  manipulationDetection Json? // { panCard: {...}, aadhaarCard: {...} }
+  processingTime        Json? // {total, faceVerification, panOCR, aadhaarOCR, manipulationCheck}
+  errors                Json[] @default([])
+
+  // Overall assessment — flattened to real columns since officer views filter/sort on these
+  totalScore           Int?
+  passedChecks         Int        @default(0)
+  failedChecks         Int        @default(0)
+  reviewRequiredChecks Int        @default(0)
+  finalDecision        AiDecision @default(PENDING)
+  riskLevel            RiskLevel  @default(medium)
+  confidence           Float?
+  summary              String?
+  issues               String[]   @default([])
+  recommendations      String[]   @default([])
+  isHighRisk           Boolean    @default(false)
+
+  status      VerificationStatus @default(draft)
+  processedBy String             @default("automated_system")
+
+  reviewedById String?
+  reviewedBy   User?     @relation("ResultReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  reviewNotes  String?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([finalDecision])
+  @@index([riskLevel])
+  @@index([isHighRisk])
+  @@map("verification_results")
+}
+
+model BehavioralAnalysis {
+  id             String       @id @default(uuid())
+  userId         String
+  verificationId String       @unique
+  verification   Verification @relation(fields: [verificationId], references: [id])
+
+  overallTrustScore Int            @default(50)
+  botLikelihood     Int            @default(50)
+  riskLevel         RiskLevel      @default(medium)
+  recommendation    Recommendation @default(standard_flow)
+  isHuman           Boolean        @default(true)
+  confidence        Float          @default(0.5)
+
+  flagsDetected String[] @default([])
+  flagCount     Int      @default(0)
+
+  // {typing, mouse, paste, speed}
+  componentScores   Json?
+  keystrokeAnalysis Json?
+  mouseAnalysis     Json?
+  pasteAnalysis     Json?
+  speedAnalysis     Json?
+  // {totalKeystrokes, totalMouseMovements, totalFields, sessionDurationMs}
+  rawMetrics        Json?
+  // {userAgent, screenResolution, timezone, language, platform}
+  sessionInfo       Json?
+
+  analyzedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([botLikelihood])
+  @@index([riskLevel])
+  @@map("behavioral_analyses")
+}
