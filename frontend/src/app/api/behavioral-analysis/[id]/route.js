@@ -1,51 +1,27 @@
 import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import connectDB from '@/lib/mongodb';
-import { verifyToken } from '@/lib/jwt';
+import prisma from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth-middleware';
 
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
-    
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { id } = await params;
 
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
+    const { user, response } = await requireAuth(request);
+    if (response) return response;
 
-    await connectDB();
-    const db = mongoose.connection.db;
+    const isAdmin = user.role === 'admin' || user.role === 'officer';
 
-    // Check user role
-    const user = await db.collection('users').findOne({
-      _id: new mongoose.Types.ObjectId(decoded.userId)
-    });
+    let analysis = await prisma.behavioralAnalysis.findUnique({ where: { id } });
 
-    const isAdmin = user?.role === 'admin' || user?.role === 'officer';
-
-    // Try to find by behavioral analysis ID
-    let analysis = await db.collection('behavioralanalyses').findOne({
-      _id: new mongoose.Types.ObjectId(id)
-    });
-
-    // If not found, try to find by verification ID
     if (!analysis) {
-      analysis = await db.collection('behavioralanalyses').findOne({
-        verificationId: new mongoose.Types.ObjectId(id)
-      });
+      analysis = await prisma.behavioralAnalysis.findUnique({ where: { verificationId: id } });
     }
 
     if (!analysis) {
       return NextResponse.json({ error: 'Behavioral analysis not found' }, { status: 404 });
     }
 
-    // Authorization check
-    const isOwner = analysis.userId.toString() === decoded.userId;
+    const isOwner = analysis.userId === user.id;
     if (!isOwner && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -53,8 +29,8 @@ export async function GET(request, { params }) {
     return NextResponse.json({
       success: true,
       data: {
-        id: analysis._id.toString(),
-        verificationId: analysis.verificationId.toString(),
+        id: analysis.id,
+        verificationId: analysis.verificationId,
         overallTrustScore: analysis.overallTrustScore,
         botLikelihood: analysis.botLikelihood,
         riskLevel: analysis.riskLevel,
@@ -70,8 +46,8 @@ export async function GET(request, { params }) {
         speedAnalysis: analysis.speedAnalysis,
         rawMetrics: analysis.rawMetrics,
         analyzedAt: analysis.analyzedAt,
-        createdAt: analysis.createdAt
-      }
+        createdAt: analysis.createdAt,
+      },
     });
 
   } catch (error) {
