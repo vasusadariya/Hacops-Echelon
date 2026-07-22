@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import connectDB from '@/lib/mongodb';
-import User from '@/models/User';
+import prisma from '@/lib/prisma';
 import { sendPasswordResetEmail } from '@/lib/email';
 
 export async function POST(request) {
@@ -20,9 +19,7 @@ export async function POST(request) {
       );
     }
 
-    await connectDB();
-
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 
     // Always return success to prevent email enumeration
     if (!user) {
@@ -39,21 +36,23 @@ export async function POST(request) {
     const resetToken = crypto.randomBytes(32).toString('hex');
     const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
 
-    // Save reset token to user
-    user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpire = new Date(Date.now() + 3600000); // 1 hour
-    await user.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetPasswordToken: hashedToken,
+        resetPasswordExpire: new Date(Date.now() + 3600000), // 1 hour
+      },
+    });
 
-    // Create reset URL
     const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${resetToken}`;
 
-    // Send email
     const emailResult = await sendPasswordResetEmail(user.email, resetUrl);
 
     if (!emailResult.success) {
-      user.resetPasswordToken = undefined;
-      user.resetPasswordExpire = undefined;
-      await user.save();
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { resetPasswordToken: null, resetPasswordExpire: null },
+      });
 
       return NextResponse.json(
         {

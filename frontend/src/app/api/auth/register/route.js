@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import connectDB from '@/lib/mongodb';
-import User from '@/models/User';
+import { Prisma } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { signToken } from '@/lib/jwt';
 
 export async function POST(request) {
@@ -9,9 +9,6 @@ export async function POST(request) {
     const body = await request.json();
     const { name, email, password } = body;
 
-    console.log('Registration attempt for email:', email);
-
-    // Validation
     if (!name || !email || !password) {
       return NextResponse.json(
         { error: 'Name, email, and password are required' },
@@ -26,10 +23,7 @@ export async function POST(request) {
       );
     }
 
-    await connectDB();
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 
     if (existingUser) {
       return NextResponse.json(
@@ -38,58 +32,44 @@ export async function POST(request) {
       );
     }
 
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    console.log('Password hashed successfully, length:', hashedPassword.length);
-
-    // Create user with explicit password field
-    const user = new User({
-      name: name.trim(),
-      email: email.toLowerCase(),
-      password: hashedPassword, // Make sure this is included
-      role: 'user',
-      isVerified: false
+    const user = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        role: 'user',
+        isVerified: false,
+      },
     });
 
-    await user.save();
-
-    console.log('User created with ID:', user._id);
-
-    // Verify password was saved
-    const savedUser = await User.findById(user._id).select('+password');
-    console.log('Saved user has password:', !!savedUser.password);
-
-    // Generate token
-    const token = signToken({ 
-      userId: user._id.toString(),
+    const token = signToken({
+      userId: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
     });
 
-    // Return user data (without password)
     const userData = {
-      id: user._id,
+      id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
       isVerified: user.isVerified,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
     };
 
     return NextResponse.json({
       success: true,
       message: 'Registration successful',
       token,
-      user: userData
+      user: userData,
     }, { status: 201 });
 
   } catch (error) {
     console.error('Registration error:', error);
-    
-    // Handle duplicate key error
-    if (error.code === 11000) {
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       return NextResponse.json(
         { error: 'User with this email already exists' },
         { status: 400 }
