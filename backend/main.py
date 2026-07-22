@@ -1,3 +1,11 @@
+import os
+from dotenv import load_dotenv
+
+# Must run before any of the router modules below are imported — several of them
+# (e.g. models/ocraadhar.py) read required env vars at import time via
+# os.environ[...], so .env has to be loaded into the process first.
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,12 +30,17 @@ app = FastAPI(
 # ------------------------
 # CORS
 # ------------------------
+# Comma-separated list of allowed origins, e.g. "https://app.example.com,https://admin.example.com"
+_default_origins = "http://localhost:3000,http://127.0.0.1:3000"
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", _default_origins).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000"
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

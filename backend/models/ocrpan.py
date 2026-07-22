@@ -210,6 +210,7 @@ def extract_pan_ocr(image_bytes: bytes) -> Dict:
             "detected": False,
             "boxes": [],
             "text_data": [],
+            "extracted_data": {"pan_number": "", "name": "", "date_of_birth": "", "father_name": ""},
             "structure_score": 0.0,
             "verification_status": "FAILED",
             "visual_report": ""
@@ -217,8 +218,21 @@ def extract_pan_ocr(image_bytes: bytes) -> Dict:
 
     # --- 1. OCR Logic (Existing) ---
     boxes = results[0].boxes.xyxy.cpu().numpy()
+    # Class ids are a parallel array to xyxy — this is what tells us which box is the
+    # PAN number vs name vs DOB vs father's name (via CLASS_MAP below). Previously this
+    # was never read, so `text_data` had no field label and `extracted_data` was never
+    # built at all — that's why PAN OCR data was always blank on the frontend.
+    class_ids = results[0].boxes.cls.cpu().numpy()
     text_data = []
     box_list = []
+    extracted_data = {}
+
+    field_key_by_label = {
+        "PAN NUMBER": "pan_number",
+        "NAME": "name",
+        "DOB": "date_of_birth",
+        "FATHER'S NAME": "father_name",
+    }
 
     for idx, box in enumerate(boxes):
         x1, y1, x2, y2 = map(int, box)
@@ -228,13 +242,22 @@ def extract_pan_ocr(image_bytes: bytes) -> Dict:
         extracted_text = "\n".join([t[1] for t in ocr_results]) if ocr_results else ""
         confidence_scores = [round(float(t[2]), 4) for t in ocr_results] if ocr_results else []
 
+        class_id = int(class_ids[idx]) if idx < len(class_ids) else None
+        field_label = CLASS_MAP.get(class_id)
+        field_key = field_key_by_label.get(field_label)
+
         text_data.append({
             "box_id": idx + 1,
+            "class_id": class_id,
+            "field": field_label,
             "coordinates": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
             "text": extracted_text,
             "confidence_scores": confidence_scores
         })
-        
+
+        if field_key and extracted_text:
+            extracted_data[field_key] = extracted_text.replace("\n", " ").strip()
+
         box_list.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2})
 
     # --- 2. New Logic: Structure Score ---
@@ -248,6 +271,12 @@ def extract_pan_ocr(image_bytes: bytes) -> Dict:
         "detected": True,
         "boxes": box_list,
         "text_data": text_data,
+        "extracted_data": {
+            "pan_number": extracted_data.get("pan_number", ""),
+            "name": extracted_data.get("name", ""),
+            "date_of_birth": extracted_data.get("date_of_birth", ""),
+            "father_name": extracted_data.get("father_name", ""),
+        },
         # --- NEW FIELDS APPENDED HERE ---
         "structure_score": score,
         "verification_status": status,

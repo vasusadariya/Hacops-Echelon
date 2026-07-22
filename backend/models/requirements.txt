@@ -1,11 +1,15 @@
-fastapi 
-uvicorn 
-python-multipart 
+fastapi
+uvicorn
+python-multipart
+pydantic
+python-dotenv
 ultralytics
 ultralyticsplus
-tensorflow
 keras
 easyocr
+opencv-python
+httpx
+inference_sdk
 
 numpy==1.26.4
 pillow==10.3.0

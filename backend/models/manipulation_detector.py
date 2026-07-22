@@ -115,7 +115,12 @@ async def fetch_image(url: str) -> Image.Image:
 async def check_manipulation(payload: ManipulationRequest):
     image = await fetch_image(str(payload.image_url))
 
-    result = predict_manipulation(image)
+    try:
+        result = predict_manipulation(image)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Manipulation check failed: {str(e)}")
 
     return {
         "check_type": "image_manipulation",

@@ -1,4 +1,6 @@
 import io
+import os
+import re
 import cv2
 import numpy as np
 from typing import Dict, Any
@@ -13,13 +15,39 @@ import httpx
 # CONFIGURATION
 # ------------------------
 ROBOFLOW_API_URL = "https://serverless.roboflow.com"
-ROBOFLOW_API_KEY = "ovqMGknxLYDMddZtnY7w"   # ⚠️ move to env later
+ROBOFLOW_API_KEY = os.environ["ROBOFLOW_API_KEY"]
 ROBOFLOW_MODEL_ID = "aadhar-card-entity-detection/1"
 
 CLIENT = InferenceHTTPClient(
     api_url=ROBOFLOW_API_URL,
     api_key=ROBOFLOW_API_KEY
 )
+
+# ------------------------
+# Best-effort normalization of Roboflow's raw class labels to a fixed set of
+# canonical keys. The exact label taxonomy of the aadhar-card-entity-detection
+# model can't be verified offline, so this matches by keyword rather than an
+# exact label list — it's a mitigation, not a guarantee, and callers should
+# still fall back to `extracted_fields` (the raw labeled dict) if a canonical
+# key comes back empty.
+# ------------------------
+_NORMALIZED_KEY_PATTERNS = {
+    "aadhaar_number": re.compile(r"aadhar|aadhaar|uid|number", re.IGNORECASE),
+    "name": re.compile(r"^name$|full[_ ]?name", re.IGNORECASE),
+    "dob": re.compile(r"dob|birth", re.IGNORECASE),
+    "gender": re.compile(r"gender|sex", re.IGNORECASE),
+    "address": re.compile(r"address", re.IGNORECASE),
+}
+
+
+def normalize_extracted_fields(extracted_fields: Dict[str, str]) -> Dict[str, str]:
+    normalized = {}
+    for canonical_key, pattern in _NORMALIZED_KEY_PATTERNS.items():
+        for label, text in extracted_fields.items():
+            if pattern.search(label):
+                normalized[canonical_key] = text
+                break
+    return normalized
 
 router = APIRouter(prefix="/aadhar", tags=["Aadhar Card OCR"])
 
@@ -115,7 +143,8 @@ async def verify_aadhar_card(payload: AadharVerifyRequest):
                 "result": {
                     "detected": False,
                     "message": "No Aadhar card entities detected.",
-                    "extracted_fields": {}
+                    "extracted_fields": {},
+                    "normalized_fields": {}
                 }
             }
 
@@ -137,6 +166,7 @@ async def verify_aadhar_card(payload: AadharVerifyRequest):
             "result": {
                 "detected": True,
                 "extracted_fields": extracted_data,
+                "normalized_fields": normalize_extracted_fields(extracted_data),
                 "raw_predictions": predictions
             }
         }
