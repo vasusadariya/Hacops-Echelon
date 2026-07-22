@@ -1,114 +1,83 @@
 import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import connectDB from '@/lib/mongodb';
-import { verifyToken } from '@/lib/jwt';
+import prisma from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth-middleware';
 
 export async function GET(request) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { response } = await requireAuth(request, { roles: ['officer', 'admin'] });
+    if (response) return response;
 
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-    const db = mongoose.connection.db;
-    
-    const user = await db.collection('users').findOne({ 
-      _id: new mongoose.Types.ObjectId(decoded.userId) 
-    });
-
-    if (!user || (user.role !== 'officer' && user.role !== 'admin')) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    const verificationsCollection = db.collection('verifications');
-    const behavioralCollection = db.collection('behavioralanalyses');
-
-    // Get verification counts by status
     const [
       total,
-      drafts,              // Not yet submitted
-      submitted,           // Submitted, waiting for AI to start processing
-      underAI,             // Currently being processed by AI
-      pending,             // AI completed, waiting for officer review (under_officer_review)
+      drafts,
+      submitted,
+      underAI,
+      pending,
       approved,
-      rejected
+      rejected,
     ] = await Promise.all([
-      verificationsCollection.countDocuments({}),
-      verificationsCollection.countDocuments({ status: 'draft' }),
-      verificationsCollection.countDocuments({ status: 'submitted' }),
-      verificationsCollection.countDocuments({ status: 'under_automated_verification' }),
-      verificationsCollection.countDocuments({ status: 'under_officer_review' }),
-      verificationsCollection.countDocuments({ status: 'approved' }),
-      verificationsCollection.countDocuments({ status: 'rejected' })
+      prisma.verification.count(),
+      prisma.verification.count({ where: { status: 'draft' } }),
+      prisma.verification.count({ where: { status: 'submitted' } }),
+      prisma.verification.count({ where: { status: 'under_automated_verification' } }),
+      prisma.verification.count({ where: { status: 'under_officer_review' } }),
+      prisma.verification.count({ where: { status: 'approved' } }),
+      prisma.verification.count({ where: { status: 'rejected' } }),
     ]);
 
-    // Get high risk count - applications that are pending review AND flagged as high risk
-    const highRisk = await verificationsCollection.countDocuments({
-      status: 'under_officer_review',
-      $or: [
-        { isHighRisk: true },
-        { 'behaviorSummary.riskLevel': { $in: ['high', 'critical'] } },
-        { 'behaviorSummary.botLikelihood': { $gte: 70 } },
-        { 'aiVerificationResults.riskLevel': { $in: ['HIGH', 'CRITICAL'] } },
-        { 'aiVerificationResults.overallScore': { $lt: 40 } }
-      ]
+    const highRisk = await prisma.verification.count({
+      where: {
+        status: 'under_officer_review',
+        OR: [
+          { isHighRisk: true },
+          { verificationResult: { riskLevel: { in: ['high', 'critical'] } } },
+          { verificationResult: { totalScore: { lt: 40 } } },
+        ],
+      },
     });
 
-    // Get behavioral analysis statistics
-    const behavioralStats = await behavioralCollection.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalAnalyses: { $sum: 1 },
-          avgTrustScore: { $avg: '$overallTrustScore' },
-          avgBotLikelihood: { $avg: '$botLikelihood' },
-          botsDetected: { $sum: { $cond: [{ $gte: ['$botLikelihood', 50] }, 1, 0] } },
-          lowRisk: { $sum: { $cond: [{ $eq: ['$riskLevel', 'low'] }, 1, 0] } },
-          mediumRisk: { $sum: { $cond: [{ $eq: ['$riskLevel', 'medium'] }, 1, 0] } },
-          highRiskCount: { $sum: { $cond: [{ $eq: ['$riskLevel', 'high'] }, 1, 0] } },
-          criticalRisk: { $sum: { $cond: [{ $eq: ['$riskLevel', 'critical'] }, 1, 0] } }
-        }
-      }
-    ]).toArray();
+    const [behavioralAgg, lowRisk, mediumRisk, highRiskCount, criticalRisk, botsDetected] = await Promise.all([
+      prisma.behavioralAnalysis.aggregate({
+        _count: { _all: true },
+        _avg: { overallTrustScore: true, botLikelihood: true },
+      }),
+      prisma.behavioralAnalysis.count({ where: { riskLevel: 'low' } }),
+      prisma.behavioralAnalysis.count({ where: { riskLevel: 'medium' } }),
+      prisma.behavioralAnalysis.count({ where: { riskLevel: 'high' } }),
+      prisma.behavioralAnalysis.count({ where: { riskLevel: 'critical' } }),
+      prisma.behavioralAnalysis.count({ where: { botLikelihood: { gte: 50 } } }),
+    ]);
 
-    // Today's processed (approved or rejected today)
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const todayProcessed = await verificationsCollection.countDocuments({
-      reviewedAt: { $gte: todayStart },
-      status: { $in: ['approved', 'rejected'] }
+    const todayProcessed = await prisma.verification.count({
+      where: {
+        reviewedAt: { gte: todayStart },
+        status: { in: ['approved', 'rejected'] },
+      },
     });
 
     return NextResponse.json({
-      // Main verification stats by status
       total,
-      drafts,                             // draft
-      submitted,                          // submitted (waiting for AI)
-      underAIVerification: underAI,       // under_automated_verification (AI processing)
-      pending,                            // under_officer_review (ready for officer)
-      highRisk,                           // under_officer_review + high risk flag
-      approved,                           // approved
-      rejected,                           // rejected
+      drafts,
+      submitted,
+      underAIVerification: underAI,
+      pending,
+      highRisk,
+      approved,
+      rejected,
       todayProcessed,
-      
-      // Behavioral analysis stats
-      behavioralStats: behavioralStats[0] || {
-        totalAnalyses: 0,
-        avgTrustScore: 0,
-        avgBotLikelihood: 0,
-        botsDetected: 0,
-        lowRisk: 0,
-        mediumRisk: 0,
-        highRiskCount: 0,
-        criticalRisk: 0
-      }
+
+      behavioralStats: {
+        totalAnalyses: behavioralAgg._count._all,
+        avgTrustScore: behavioralAgg._avg.overallTrustScore || 0,
+        avgBotLikelihood: behavioralAgg._avg.botLikelihood || 0,
+        botsDetected,
+        lowRisk,
+        mediumRisk,
+        highRiskCount,
+        criticalRisk,
+      },
     });
 
   } catch (error) {

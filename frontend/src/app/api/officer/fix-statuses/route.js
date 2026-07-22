@@ -1,52 +1,21 @@
 import { NextResponse } from 'next/server';
-import mongoose from 'mongoose';
-import connectDB from '@/lib/mongodb';
-import { verifyToken } from '@/lib/jwt';
+import prisma from '@/lib/prisma';
+import { requireAuth } from '@/lib/auth-middleware';
 
 export async function POST(request) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { response } = await requireAuth(request, { roles: ['officer', 'admin'] });
+    if (response) return response;
 
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    await connectDB();
-    const db = mongoose.connection.db;
-    
-    const usersCollection = db.collection('users');
-    const user = await usersCollection.findOne({ 
-      _id: new mongoose.Types.ObjectId(decoded.userId) 
+    const result = await prisma.verification.updateMany({
+      where: { status: { in: ['submitted', 'under_automated_verification'] } },
+      data: { status: 'under_officer_review' },
     });
-
-    if (!user || user.role !== 'officer') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    const verificationsCollection = db.collection('verifications');
-
-    // Update all submitted/under_automated_verification to under_officer_review
-    const updateResult = await verificationsCollection.updateMany(
-      { 
-        status: { $in: ['submitted', 'under_automated_verification'] }
-      },
-      { 
-        $set: { 
-          status: 'under_officer_review',
-          updatedAt: new Date()
-        }
-      }
-    );
 
     return NextResponse.json({
       success: true,
-      message: `Updated ${updateResult.modifiedCount} documents`,
-      modifiedCount: updateResult.modifiedCount
+      message: `Updated ${result.count} documents`,
+      modifiedCount: result.count,
     });
 
   } catch (error) {
