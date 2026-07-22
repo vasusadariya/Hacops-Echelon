@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Hugging Face Spaces run Docker containers as a non-root user (uid 1000) by
+# default — files/dirs owned by root (the default COPY behavior) aren't
+# writable by that user, so this creates a matching user up front and chowns
+# everything copied in, mirroring HF's own documented Docker Space template.
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH="/home/user/.local/bin:$PATH"
+
+WORKDIR /app
+
+COPY --chown=user models/requirements.txt ./models/requirements.txt
+RUN pip install --no-cache-dir -r models/requirements.txt
+
+COPY --chown=user . .
+
+# 7860 is the Spaces-conventional port (see app_port in README.md's frontmatter)
+EXPOSE 7860
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
