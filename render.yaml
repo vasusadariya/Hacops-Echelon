@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: hackops-echelon-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: standard
+    healthCheckPath: /health
+    envVars:
+      - key: ROBOFLOW_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://hackops-echelon.vercel.app,http://localhost:3000
