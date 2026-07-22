@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Clock,
   CheckCircle,
@@ -34,6 +35,7 @@ export default function OfficerDashboard() {
   });
   const [pendingApplications, setPendingApplications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchDashboardData();
@@ -41,9 +43,10 @@ export default function OfficerDashboard() {
 
   const fetchDashboardData = async () => {
     setLoading(true);
+    setError('');
     try {
       const token = localStorage.getItem('token');
-      
+
       const [statsRes, pendingRes] = await Promise.all([
         fetch('/api/officer/stats', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -53,13 +56,16 @@ export default function OfficerDashboard() {
         })
       ]);
 
-      if (statsRes.ok) setStats(await statsRes.json());
-      if (pendingRes.ok) {
-        const data = await pendingRes.json();
-        setPendingApplications(data.applications || []);
+      if (!statsRes.ok || !pendingRes.ok) {
+        throw new Error('Failed to load dashboard data. Please try refreshing.');
       }
+
+      setStats(await statsRes.json());
+      const data = await pendingRes.json();
+      setPendingApplications(data.applications || []);
     } catch (err) {
       console.error('Failed to fetch:', err);
+      setError(err.message || 'Failed to load dashboard data. Please try refreshing.');
     } finally {
       setLoading(false);
     }
@@ -135,6 +141,12 @@ export default function OfficerDashboard() {
           Refresh
         </Button>
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">

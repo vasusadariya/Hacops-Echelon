@@ -87,11 +87,10 @@ export default function ReviewApplicationPage() {
       });
 
       const data = await res.json();
-      console.log('Approve response:', data);
-      
-      // if (!res.ok) {
-      //   throw new Error(data.error || 'Failed to approve application');
-      // }
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to approve application');
+      }
 
       setSuccess('Application approved successfully! Redirecting...');
       

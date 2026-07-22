@@ -57,14 +57,14 @@ export default function OfficerLayout({ children }) {
     if (!loading) {
       if (!user) {
         router.push('/auth?redirect=/officer');
-      } else if (user.role !== 'officer') {
+      } else if (!['officer', 'admin'].includes(user.role)) {
         router.push('/dashboard');
       }
     }
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user?.role === 'officer') {
+    if (['officer', 'admin'].includes(user?.role)) {
       fetchStats();
       const interval = setInterval(fetchStats, 15000); // Refresh every 15 seconds
       return () => clearInterval(interval);
@@ -96,7 +96,7 @@ export default function OfficerLayout({ children }) {
     );
   }
 
-  if (!user || user.role !== 'officer') {
+  if (!user || !['officer', 'admin'].includes(user.role)) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <Shield className="h-12 w-12 text-orange-500 mx-auto mb-4" />

@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FileSearch, Search, RefreshCw, Eye, ChevronLeft, ChevronRight, Filter, AlertTriangle, Cpu } from 'lucide-react';
 
 export default function AllApplicationsPage() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [riskFilter, setRiskFilter] = useState('all');
@@ -19,31 +21,34 @@ export default function AllApplicationsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
-  useEffect(() => { 
-    fetchApplications(); 
+  useEffect(() => {
+    fetchApplications();
   }, [page, statusFilter, riskFilter]);
 
   const fetchApplications = async () => {
     setLoading(true);
+    setError('');
     try {
       const token = localStorage.getItem('token');
       const params = new URLSearchParams({ page: page.toString(), limit: '10' });
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (riskFilter !== 'all') params.append('risk', riskFilter);
-      
+
       const res = await fetch(`/api/officer/applications?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        setApplications(data.applications || []);
-        setTotalPages(data.totalPages || data.pagination?.totalPages || 1);
-        setTotal(data.total || data.pagination?.total || 0);
+      if (!res.ok) {
+        throw new Error('Failed to load applications. Please try refreshing.');
       }
-    } catch (err) { 
-      console.error(err); 
-    } finally { 
-      setLoading(false); 
+      const data = await res.json();
+      setApplications(data.applications || []);
+      setTotalPages(data.totalPages || data.pagination?.totalPages || 1);
+      setTotal(data.total || data.pagination?.total || 0);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to load applications. Please try refreshing.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -117,6 +122,12 @@ export default function AllApplicationsPage() {
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </Button>
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Filters */}
       <Card className="border shadow-sm">

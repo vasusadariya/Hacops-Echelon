@@ -6,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
 import {
   Cpu, RefreshCw, Eye, Loader2, AlertTriangle, Clock
 } from 'lucide-react';
@@ -121,8 +120,10 @@ export default function AIProcessingPage() {
 
               <div className="flex gap-3 items-center">
                 <div className="p-2 rounded border bg-white text-center min-w-[100px]">
-                  <div className="text-xs text-gray-500 mb-1">Processing</div>
-                  <Progress value={60} className="h-2 [&>div]:bg-purple-500" />
+                  <div className="text-xs text-gray-500 mb-1">Status</div>
+                  <div className="text-sm font-medium text-purple-600 flex items-center justify-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> In progress
+                  </div>
                 </div>
                 <Link href={`/officer/review/${app._id}`}>
                   <Button variant="outline">
