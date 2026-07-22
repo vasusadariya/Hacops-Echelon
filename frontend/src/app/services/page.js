@@ -1,6 +1,5 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import Navbar from '@/components/navbar';
 import { Footer } from '@/components/footer';

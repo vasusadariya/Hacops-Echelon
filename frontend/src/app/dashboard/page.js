@@ -258,7 +258,7 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" disabled>
+              <Button variant="outline" onClick={() => router.push('/help')}>
                 Contact Support
               </Button>
             </CardContent>

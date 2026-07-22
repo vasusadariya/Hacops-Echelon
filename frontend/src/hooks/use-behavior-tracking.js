@@ -145,7 +145,7 @@ export function useBehaviorTracking() {
     const keystrokes = keystrokesRef.current;
     
     if (keystrokes.length < 10) {
-      return { insufficient_data: true, trust_score: 50 };
+      return { insufficient_data: true, trustScore: 50 };
     }
     
     // Calculate inter-keystroke intervals
@@ -158,7 +158,7 @@ export function useBehaviorTracking() {
     }
     
     if (intervals.length < 5) {
-      return { insufficient_data: true, trust_score: 50 };
+      return { insufficient_data: true, trustScore: 50 };
     }
     
     // Calculate statistics
@@ -205,7 +205,7 @@ export function useBehaviorTracking() {
     const movements = mouseEventsRef.current;
     
     if (movements.length < 20) {
-      return { insufficient_data: true, trust_score: 50 };
+      return { insufficient_data: true, trustScore: 50 };
     }
     
     // Calculate linearity (bot detection)
@@ -266,7 +266,7 @@ export function useBehaviorTracking() {
     const totalFields = Object.keys(fieldEvents).length;
     
     if (totalFields === 0) {
-      return { insufficient_data: true, trust_score: 50 };
+      return { insufficient_data: true, trustScore: 50 };
     }
     
     const pastedFields = Object.values(fieldEvents).filter(f => f.pasted).length;
