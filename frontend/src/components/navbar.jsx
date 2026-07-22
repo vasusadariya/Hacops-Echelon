@@ -18,7 +18,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LanguageSwitcher } from "@/components/language-switcher";
 
-import { Search, Menu, X, LogOut, User, Settings } from "lucide-react";
+import { Search, Menu, X, LogOut, User } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 export default function Navbar() {
@@ -76,10 +76,6 @@ export default function Navbar() {
             <div className="flex items-center gap-3">
 
 
-              <Link href="#" className="text-xs border px-2 py-1 rounded">
-                {t('navbar.fontSize')}
-              </Link>
-
               {/* Language Switcher */}
               <LanguageSwitcher />
 
@@ -115,11 +111,6 @@ export default function Navbar() {
                         <User className="mr-2 h-4 w-4" />
                         {t('common.dashboard')}
                       </Link>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem>
-                      <Settings className="mr-2 h-4 w-4" />
-                      {t('common.settings')}
                     </DropdownMenuItem>
 
                     <DropdownMenuSeparator />
@@ -162,9 +153,9 @@ export default function Navbar() {
           {mobileMenuOpen && (
             <div className="md:hidden mt-4 border-t pt-4 space-y-3 text-sm">
               <Link href="/" className="block">{t('common.home')}</Link>
-              <Link href="#" className="block">{t('common.aboutVerification')}</Link>
-              <Link href="#" className="block">{t('common.services')}</Link>
-              <Link href="#" className="block">{t('common.help')}</Link>
+              <Link href="/about" className="block">{t('common.aboutVerification')}</Link>
+              <Link href="/services" className="block">{t('common.services')}</Link>
+              <Link href="/help" className="block">{t('common.help')}</Link>
 
               {!user && (
                 <div className="flex gap-2 pt-2">

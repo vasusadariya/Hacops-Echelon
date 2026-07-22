@@ -1,7 +1,5 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import {
   DropdownMenu,
@@ -11,24 +9,19 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Globe } from 'lucide-react';
+import { useLocale, useChangeLocale } from '@/i18n/navigation';
 
 export function LanguageSwitcher() {
-  const t = useTranslations('common');
-  const router = useRouter();
+  const changeLocaleCookie = useChangeLocale();
   const [currentLocale, setCurrentLocale] = useState('en');
 
   useEffect(() => {
-    const locale = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('NEXT_LOCALE='))
-      ?.split('=')[1] || 'en';
-    setCurrentLocale(locale);
+    setCurrentLocale(useLocale());
   }, []);
 
   const changeLocale = (newLocale) => {
-    document.cookie = `NEXT_LOCALE=${newLocale}; path=/; max-age=31536000`;
+    changeLocaleCookie(newLocale);
     setCurrentLocale(newLocale);
-    router.refresh();
   };
 
   return (

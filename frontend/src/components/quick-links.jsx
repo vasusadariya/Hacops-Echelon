@@ -1,6 +1,6 @@
 'use client';
 
-import { Globe, Calendar, MapPin, MessageSquare, Zap } from 'lucide-react';
+import { Globe, Calendar, MapPin, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
@@ -16,17 +16,12 @@ export function QuickLinks() {
     {
       icon: Calendar,
       titleKey: 'checkStatus',
-      href: '/verification',
+      href: '/verification/status',
     },
     {
       icon: MapPin,
       titleKey: 'trackProcess',
-      href: '/verification',
-    },
-    {
-      icon: MessageSquare,
-      titleKey: 'registerFeedback',
-      href: '/feedback',
+      href: '/verification/status',
     },
     {
       icon: Zap,

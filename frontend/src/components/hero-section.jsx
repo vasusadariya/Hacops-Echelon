@@ -30,7 +30,7 @@ export function HeroSection() {
             {t('description')}
           </p>
           <Link href="/verification">
-            <Button className="hidden sm:inline-flex">
+            <Button className="inline-flex">
               {t('startVerification')}
             </Button>
           </Link>

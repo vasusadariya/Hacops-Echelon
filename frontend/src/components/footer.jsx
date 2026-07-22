@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Phone, Mail } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { LanguageSwitcher } from '@/components/language-switcher';
 
 export function Footer() {
   const t = useTranslations('footer');
@@ -28,12 +29,13 @@ export function Footer() {
           {/* Services */}
           <div>
             <h3 className="font-semibold text-foreground mb-4">
+              {t('services.title')}
             </h3>
             <ul className="space-y-2 text-sm">
-              <li><Link href="#" className="hover:text-foreground"></Link></li>
-              <li><Link href="#" className="hover:text-foreground"></Link></li>
-              <li><Link href="#" className="hover:text-foreground"></Link></li>
-              <li><Link href="#" className="hover:text-foreground"></Link></li>
+              <li><Link href="/services" className="hover:text-foreground">{t('services.documentVerification')}</Link></li>
+              <li><Link href="/services" className="hover:text-foreground">{t('services.biometricVerification')}</Link></li>
+              <li><Link href="/services" className="hover:text-foreground">{t('services.identityValidation')}</Link></li>
+              <li><Link href="/services" className="hover:text-foreground">{t('services.kycCompliance')}</Link></li>
             </ul>
           </div>
 
@@ -79,10 +81,7 @@ export function Footer() {
               <h4 className="font-semibold text-foreground mb-2">
                 {t('languages')}
               </h4>
-              <div className="space-y-1">
-                <Link href="#" className="block hover:text-foreground">हिन्दी</Link>
-                <Link href="#" className="block hover:text-foreground">English</Link>
-              </div>
+              <LanguageSwitcher />
             </div>
 
             <div className="md:text-center">
