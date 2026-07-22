@@ -312,10 +312,14 @@ class _OfficerReviewScreenState extends State<OfficerReviewScreen> {
   }
 
   Widget _buildAIVerificationCard() {
+    // aiVerificationResults is only the flat summary (overallScore/riskLevel/decision/...).
+    // The nested per-check results (face/PAN/Aadhaar) live under verificationResults,
+    // which is what GET /api/officer/applications/[id] actually returns them under.
     final aiResults = _application!['aiVerificationResults'] ?? {};
-    final faceVerification = aiResults['faceVerification'] ?? {};
-    final manipulationPan = aiResults['manipulationDetection']?['panCard'] ?? {};
-    final manipulationAadhaar = aiResults['manipulationDetection']?['aadhaarCard'] ?? {};
+    final verificationResults = _application!['verificationResults'] ?? {};
+    final faceVerification = verificationResults['faceVerification'] ?? {};
+    final manipulationPan = verificationResults['manipulationDetection']?['panCard'] ?? {};
+    final manipulationAadhaar = verificationResults['manipulationDetection']?['aadhaarCard'] ?? {};
 
     return Card(
       child: Padding(

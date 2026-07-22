@@ -166,9 +166,11 @@ class BehaviorTracker {
   }
 
   String _getRecommendation(int botLikelihood) {
+    // Must match the backend's Recommendation enum exactly
+    // (auto_approve|standard_flow|enhanced_verification|manual_review|reject).
     if (botLikelihood < 30) return 'auto_approve';
     if (botLikelihood < 50) return 'standard_flow';
-    if (botLikelihood < 70) return 'enhanced_review';
+    if (botLikelihood < 70) return 'enhanced_verification';
     return 'manual_review';
   }
 

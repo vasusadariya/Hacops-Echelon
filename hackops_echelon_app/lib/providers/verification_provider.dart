@@ -43,10 +43,12 @@ class VerificationProvider extends ChangeNotifier {
 
     try {
       final result = await ApiService.getVerificationStatus();
-      if (result['success'] == true || result['verification'] != null) {
-        _verificationStatus = result['verification'] ?? result;
-      } else if (result['error']?.toString().contains('No verification') ?? false) {
-        _verificationStatus = {'status': 'not_started'};
+      // GET /api/verification/status returns the status object flat at the root
+      // (hasVerification, status, statusInfo, ...) — it never wraps it in a
+      // `success`/`verification` key. Only ApiService's own error paths
+      // (auth/network failures) have no `status` key at all.
+      if (result['status'] != null) {
+        _verificationStatus = result;
       } else {
         _verificationStatus = {'status': 'not_started'};
       }

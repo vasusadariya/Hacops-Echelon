@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/verification_provider.dart';
 import '../utils/indian_states.dart';
+import '../widgets/common/behavior_tracker.dart';
 
 class VerificationFormScreen extends StatefulWidget {
   const VerificationFormScreen({super.key});
@@ -40,6 +41,13 @@ class _VerificationFormScreenState extends State<VerificationFormScreen> {
   Map<String, File> _faceCaptures = {};
 
   final _picker = ImagePicker();
+  final _behaviorTracker = BehaviorTracker();
+
+  @override
+  void initState() {
+    super.initState();
+    _behaviorTracker.startTracking();
+  }
 
   @override
   void dispose() {
@@ -157,7 +165,9 @@ class _VerificationFormScreenState extends State<VerificationFormScreen> {
     }
 
     if (_currentStep < 4) {
+      _behaviorTracker.trackFieldBlur('step_$_currentStep');
       setState(() => _currentStep++);
+      _behaviorTracker.trackFieldFocus('step_$_currentStep');
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -208,7 +218,7 @@ class _VerificationFormScreenState extends State<VerificationFormScreen> {
         aadhaarCard: _aadhaarCard!,
         panCard: _panCard!,
         faceCaptures: faceBase64,
-        behaviorData: {'source': 'mobile_app'},
+        behaviorData: _behaviorTracker.generateReport(),
       );
 
       if (!mounted) return;

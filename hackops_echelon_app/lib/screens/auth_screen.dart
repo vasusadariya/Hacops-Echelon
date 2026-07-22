@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../services/api_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -405,9 +406,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   void _showForgotPasswordDialog() {
     final emailController = TextEditingController();
+    // Captured from this State's own (stable) context before the dialog opens —
+    // the dialog builder's own `context` gets deactivated as soon as it's popped,
+    // so it can't be used after the `await` below.
+    final messenger = ScaffoldMessenger.of(context);
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Forgot Password'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -426,15 +432,28 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              // Handle forgot password
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('If the email exists, reset instructions will be sent.')),
+            onPressed: () async {
+              final email = emailController.text.trim();
+              Navigator.pop(dialogContext);
+
+              if (email.isEmpty) return;
+
+              final result = await ApiService.forgotPassword(email);
+              if (!mounted) return;
+
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    result['message'] ??
+                        (result['success'] == true
+                            ? 'If the email exists, reset instructions will be sent.'
+                            : 'Failed to send reset instructions. Please try again.'),
+                  ),
+                ),
               );
             },
             child: const Text('Send'),
